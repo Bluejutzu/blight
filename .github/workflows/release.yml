@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main, dev]
+    branches: [master, dev]
     paths:
       - 'frontend/package.json'
 
@@ -28,7 +28,7 @@ jobs:
           BRANCH="${GITHUB_REF#refs/heads/}"
 
           # Determine release channel from branch
-          if [ "$BRANCH" = "main" ]; then
+          if [ "$BRANCH" = "master" ]; then
             CHANNEL="alpha"
           elif [ "$BRANCH" = "dev" ]; then
             CHANNEL="prelight"

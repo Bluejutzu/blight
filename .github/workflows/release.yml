@@ -8,7 +8,7 @@ on:
 
 jobs:
   check-version:
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: windows-latest
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       version: ${{ steps.check.outputs.version }}
@@ -22,6 +22,7 @@ jobs:
 
       - name: Check for version bump
         id: check
+        shell: bash
         run: |
           VERSION=$(node -p "require('./frontend/package.json').version")
           BRANCH="${GITHUB_REF#refs/heads/}"
@@ -54,19 +55,7 @@ jobs:
   build:
     needs: check-version
     if: needs.check-version.outputs.should_release == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: windows
-            extension: .exe
-            artifact_name: blacksmith-4vcpu-windows-2025
-          - os: ubuntu-22.04
-            platform: linux
-            extension: ''
-            artifact_name: blight-linux-amd64
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -90,12 +79,6 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
-
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install
@@ -105,22 +88,17 @@ jobs:
 
       - name: Rename artifact
         shell: bash
-        run: |
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            cp build/bin/blight.exe ${{ matrix.artifact_name }}
-          else
-            cp build/bin/blight ${{ matrix.artifact_name }}
-          fi
+        run: cp build/bin/blight.exe blight-windows-amd64.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          name: blight-windows-amd64.exe
+          path: blight-windows-amd64.exe
 
   release:
     needs: [check-version, build]
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: windows-latest
     permissions:
       contents: write
     steps:
@@ -135,6 +113,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
+        shell: bash
         run: |
           # Get the previous tag (if any)
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -179,11 +158,9 @@ jobs:
             | Platform | File |
             |----------|------|
             | Windows (x64) | `blight-windows-amd64.exe` |
-            | Linux (x64) | `blight-linux-amd64` |
 
             ---
 
             *Built from `${{ github.ref_name }}` branch at `${{ github.sha }}`*
           files: |
             artifacts/blight-windows-amd64.exe/*
-            artifacts/blight-linux-amd64/*

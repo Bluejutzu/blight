@@ -8,7 +8,7 @@ on:
 
 jobs:
   check-version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       version: ${{ steps.check.outputs.version }}
@@ -55,13 +55,14 @@ jobs:
     needs: check-version
     if: needs.check-version.outputs.should_release == 'true'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform: windows
             extension: .exe
             artifact_name: blight-windows-amd64.exe
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux
             extension: ''
             artifact_name: blight-linux-amd64
@@ -119,7 +120,7 @@ jobs:
 
   release:
     needs: [check-version, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:

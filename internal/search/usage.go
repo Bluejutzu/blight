@@ -15,11 +15,11 @@ type UsageTracker struct {
 
 func NewUsageTracker() *UsageTracker {
 	home, _ := os.UserHomeDir()
-	t := &UsageTracker{
+	tracker := &UsageTracker{
 		counts: make(map[string]int),
 		path:   filepath.Join(home, ".blight", "usage.json"),
 	}
-	t.load()
+	tracker.load()
 	return t
 }
 

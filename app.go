@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"blight/internal/apps"
@@ -48,8 +49,10 @@ type ContextAction struct {
 }
 
 type BlightConfig struct {
-	FirstRun bool   `json:"firstRun"`
-	Hotkey   string `json:"hotkey"`
+	FirstRun     bool     `json:"firstRun"`
+	Hotkey       string   `json:"hotkey"`
+	MaxClipboard int      `json:"maxClipboard"`
+	IndexDirs    []string `json:"indexDirs,omitempty"`
 }
 
 type App struct {
@@ -82,11 +85,13 @@ func (a *App) startup(ctx context.Context) {
 	log.Debug("config loaded", map[string]interface{}{"firstRun": a.config.FirstRun, "hotkey": a.config.Hotkey})
 
 	a.scanner = apps.NewScanner()
-	// ... rest of startup
 	log.Info("app scanner initialized", map[string]interface{}{"appCount": len(a.scanner.Apps())})
 
 	a.usage = search.NewUsageTracker()
 	a.clipboard = commands.NewClipboardHistory(ctx)
+	if a.config.MaxClipboard > 0 {
+		a.clipboard.SetMaxSize(a.config.MaxClipboard)
+	}
 	go a.clipboard.PollClipboard()
 	log.Debug("clipboard polling started")
 
@@ -106,7 +111,11 @@ func (a *App) startup(ctx context.Context) {
 
 	a.tray = tray.New(
 		func() { a.ShowWindow() },
-		func() { log.Info("settings requested from tray") },
+		func() {
+			log.Info("settings requested from tray")
+			a.ShowWindow()
+			runtime.EventsEmit(a.ctx, "openSettings")
+		},
 		func() { runtime.Quit(ctx) },
 	)
 	a.tray.Start()
@@ -158,7 +167,6 @@ func (a *App) InstallUpdate() string {
 	log := debug.Get()
 	u := updater.New("devatblight/blight")
 
-	// We need the release object. Re-detecting is safest/easiest if we don't cache.
 	rel, found, err := u.CheckForUpdates(a.version)
 	if err != nil {
 		return "Check failed: " + err.Error()
@@ -174,6 +182,19 @@ func (a *App) InstallUpdate() string {
 	}
 
 	log.Info("update applied, restarting...")
+
+	exe, err := os.Executable()
+	if err != nil {
+		log.Error("could not get executable path for restart", map[string]interface{}{"error": err.Error()})
+		return "success"
+	}
+
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		cmd := exec.Command(exe)
+		cmd.Start()
+		runtime.Quit(a.ctx)
+	}()
 
 	return "success"
 }
@@ -211,11 +232,15 @@ func (a *App) configPath() string {
 func (a *App) loadConfig() {
 	data, err := os.ReadFile(a.configPath())
 	if err != nil {
-		a.config = BlightConfig{FirstRun: true, Hotkey: "Alt+Space"}
+		a.config = BlightConfig{FirstRun: true, Hotkey: "Alt+Space", MaxClipboard: 50}
 		return
 	}
 	if err := json.Unmarshal(data, &a.config); err != nil {
-		a.config = BlightConfig{FirstRun: true, Hotkey: "Alt+Space"}
+		a.config = BlightConfig{FirstRun: true, Hotkey: "Alt+Space", MaxClipboard: 50}
+		return
+	}
+	if a.config.MaxClipboard == 0 {
+		a.config.MaxClipboard = 50
 	}
 }
 
@@ -238,6 +263,23 @@ func (a *App) CompleteOnboarding(hotkey string) error {
 	a.config.FirstRun = false
 	if hotkey != "" {
 		a.config.Hotkey = hotkey
+	}
+	return a.saveConfig()
+}
+
+// GetConfig returns the current config for the settings UI.
+func (a *App) GetConfig() BlightConfig {
+	return a.config
+}
+
+// SaveSettings persists hotkey and clipboard size from the settings UI.
+func (a *App) SaveSettings(hotkey string, maxClipboard int) error {
+	if hotkey != "" {
+		a.config.Hotkey = hotkey
+	}
+	if maxClipboard > 0 {
+		a.config.MaxClipboard = maxClipboard
+		a.clipboard.SetMaxSize(maxClipboard)
 	}
 	return a.saveConfig()
 }
@@ -354,15 +396,91 @@ func (a *App) Execute(id string) string {
 }
 
 func (a *App) GetContextActions(id string) []ContextAction {
-	return []ContextAction{
-		{ID: "open", Label: "Open", Icon: "▶"},
-		{ID: "admin", Label: "Run as Administrator", Icon: "🛡️"},
-		{ID: "explorer", Label: "Show in Explorer", Icon: "📂"},
-		{ID: "copy-path", Label: "Copy Path", Icon: "📋"},
+	switch {
+	case strings.HasPrefix(id, "file-open:"):
+		return []ContextAction{
+			{ID: "open", Label: "Open", Icon: "▶"},
+			{ID: "explorer", Label: "Show in Explorer", Icon: "📂"},
+			{ID: "copy-path", Label: "Copy Path", Icon: "📋"},
+			{ID: "copy-name", Label: "Copy Name", Icon: "📝"},
+		}
+	case strings.HasPrefix(id, "clip-"):
+		return []ContextAction{
+			{ID: "copy", Label: "Copy", Icon: "📋"},
+			{ID: "delete", Label: "Delete", Icon: "🗑️"},
+		}
+	case strings.HasPrefix(id, "sys-"):
+		return []ContextAction{
+			{ID: "run", Label: "Run", Icon: "▶"},
+		}
+	case id == "calc-result" || id == "no-results":
+		return []ContextAction{}
+	default:
+		// App
+		return []ContextAction{
+			{ID: "open", Label: "Open", Icon: "▶"},
+			{ID: "admin", Label: "Run as Administrator", Icon: "🛡️"},
+			{ID: "explorer", Label: "Show in Explorer", Icon: "📂"},
+			{ID: "copy-path", Label: "Copy Path", Icon: "📋"},
+		}
 	}
 }
 
 func (a *App) ExecuteContextAction(resultID string, actionID string) string {
+	// Files
+	if strings.HasPrefix(resultID, "file-open:") {
+		filePath := strings.TrimPrefix(resultID, "file-open:")
+		switch actionID {
+		case "open":
+			cmd := exec.Command("cmd", "/c", "start", "", filePath)
+			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+			cmd.Start()
+			runtime.WindowHide(a.ctx)
+			return "ok"
+		case "explorer":
+			exec.Command("explorer", "/select,", filePath).Start()
+			return "ok"
+		case "copy-path":
+			runtime.ClipboardSetText(a.ctx, filePath)
+			return "ok"
+		case "copy-name":
+			runtime.ClipboardSetText(a.ctx, filepath.Base(filePath))
+			return "ok"
+		}
+		return "unknown action"
+	}
+
+	// Clipboard entries
+	if strings.HasPrefix(resultID, "clip-") {
+		idxStr := strings.TrimPrefix(resultID, "clip-")
+		var idx int
+		fmt.Sscanf(idxStr, "%d", &idx)
+		switch actionID {
+		case "copy", "open":
+			if a.clipboard.CopyToClipboard(idx) {
+				return "copied"
+			}
+			return "error"
+		case "delete":
+			a.clipboard.Delete(idx)
+			return "ok"
+		}
+		return "unknown action"
+	}
+
+	// System commands
+	if strings.HasPrefix(resultID, "sys-") {
+		if actionID == "run" {
+			sysID := strings.TrimPrefix(resultID, "sys-")
+			if err := commands.ExecuteSystemCommand(sysID); err != nil {
+				return err.Error()
+			}
+			return "ok"
+		}
+		return "unknown action"
+	}
+
+	// Apps
 	allApps := a.scanner.Apps()
 	var target apps.AppEntry
 	found := false
@@ -398,9 +516,7 @@ func (a *App) ExecuteContextAction(resultID string, actionID string) string {
 		return "ok"
 
 	case "explorer":
-		dir := filepath.Dir(target.Path)
 		exec.Command("explorer", "/select,", target.Path).Start()
-		_ = dir
 		return "ok"
 
 	case "copy-path":
@@ -514,18 +630,18 @@ func (a *App) searchApps(query string) []SearchResult {
 
 	for _, match := range matches[:limit] {
 		app := allApps[match.Index]
-		icon := apps.GetIconBase64(app.Path)
 
 		subtitle := "Application"
 		if !app.IsLnk {
 			subtitle = prettifyPath(app.Path)
 		}
 
+		// Icons are loaded asynchronously by the frontend via GetIcon(path)
 		results = append(results, SearchResult{
 			ID:       app.Name,
 			Title:    app.Name,
 			Subtitle: subtitle,
-			Icon:     icon,
+			Icon:     "",
 			Category: "Applications",
 			Path:     app.Path,
 		})
@@ -552,7 +668,6 @@ func (a *App) getDefaultResults() []SearchResult {
 	var results []SearchResult
 	for _, match := range matches[:count] {
 		app := allApps[match.Index]
-		icon := apps.GetIconBase64(app.Path)
 		category := "Suggested"
 		if a.usage.Score(app.Name) > 0 {
 			category = "Recent"
@@ -561,11 +676,12 @@ func (a *App) getDefaultResults() []SearchResult {
 		if !app.IsLnk {
 			subtitle = prettifyPath(app.Path)
 		}
+		// Icons are loaded asynchronously by the frontend via GetIcon(path)
 		results = append(results, SearchResult{
 			ID:       app.Name,
 			Title:    app.Name,
 			Subtitle: subtitle,
-			Icon:     icon,
+			Icon:     "",
 			Category: category,
 			Path:     app.Path,
 		})

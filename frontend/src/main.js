@@ -1,4 +1,8 @@
-import { IsFirstRun, CompleteOnboarding, Search, Execute, HideWindow, GetContextActions, ExecuteContextAction, CheckForUpdates, InstallUpdate } from '../wailsjs/go/main/App';
+import {
+    IsFirstRun, CompleteOnboarding, Search, Execute, HideWindow,
+    GetContextActions, ExecuteContextAction, CheckForUpdates, InstallUpdate,
+    GetIcon, GetConfig, SaveSettings, GetVersion, ReindexFiles, ClearIndex
+} from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 class Blight {
@@ -19,6 +23,7 @@ class Blight {
         this.splashEl = document.getElementById('splash');
         this.launcherEl = document.getElementById('app');
         this.contextMenuEl = document.getElementById('context-menu');
+        this.settingsPanelEl = document.getElementById('settings-panel');
 
         // Notification elements
         this.notifIndicator = document.getElementById('notification-indicator');
@@ -43,21 +48,16 @@ class Blight {
 
     async checkForUpdates() {
         try {
-            console.log("Checking for updates...");
             const update = await CheckForUpdates();
             if (update && update.available) {
-                console.log("Update available:", update.version);
                 this.showUpdateUI(update);
-            } else {
-                console.log("No updates found.");
             }
         } catch (e) {
-            console.error("Failed to check for updates:", e);
+            console.error('Failed to check for updates:', e);
         }
     }
 
     showUpdateUI(update) {
-        // Create update badge
         const badge = document.createElement('div');
         badge.className = 'notification-indicator update-badge';
         badge.innerHTML = `
@@ -66,7 +66,6 @@ class Blight {
         `;
         badge.style.cursor = 'pointer';
         badge.title = `Click to install update ${update.version}`;
-        
         badge.onclick = () => this.installUpdate(update);
 
         if (this.notifIndicator && this.notifIndicator.parentNode) {
@@ -76,11 +75,13 @@ class Blight {
 
     async installUpdate(update) {
         if (!confirm(`Install update ${update.version}? The app will restart.`)) return;
-        
-        this.showToast("Downloading update...", "Please wait");
+
+        this.showToast('Downloading update…', 'Please wait');
         const res = await InstallUpdate();
-        if (res !== "success") {
-            this.showToast("Update failed", res);
+        if (res === 'success') {
+            this.showToast('Restarting…', 'Update applied successfully');
+        } else {
+            this.showToast('Update failed', res);
         }
     }
 
@@ -97,6 +98,7 @@ class Blight {
         this.bindEvents();
         this.listenIndexStatus();
         this.bindNotificationUI();
+        this.bindSettings();
         this.loadDefaultResults();
     }
 
@@ -144,6 +146,15 @@ class Blight {
         this.searchInput.addEventListener('input', () => this.onSearchInput());
 
         document.addEventListener('keydown', (e) => {
+            // Settings panel absorbs all keystrokes
+            if (!this.settingsPanelEl.classList.contains('hidden')) {
+                if (e.key === 'Escape') {
+                    this.closeSettings();
+                    e.preventDefault();
+                }
+                return;
+            }
+
             if (!this.contextMenuEl.classList.contains('hidden')) {
                 if (e.key === 'Escape') {
                     this.hideContextMenu();
@@ -181,11 +192,19 @@ class Blight {
             if (!this.contextMenuEl.contains(e.target)) {
                 this.hideContextMenu();
             }
-            // Close notification history if clicking outside
             if (this.notifHistory && !this.notifIndicator.contains(e.target) && !this.notifHistory.contains(e.target)) {
                 this.notifHistory.classList.add('hidden');
             }
         });
+
+        // Settings open button in footer
+        const settingsBtn = document.getElementById('settings-open-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.openSettings());
+        }
+
+        // Listen for openSettings event from tray
+        EventsOn('openSettings', () => this.openSettings());
     }
 
     onSearchInput() {
@@ -267,9 +286,8 @@ class Blight {
             if (result.icon && result.icon.startsWith('data:')) {
                 iconHtml = `<div class="result-icon"><img src="${result.icon}" alt=""/></div>`;
             } else {
-                // Category-aware SVG fallback icons
                 const fallbackSvg = this.getFallbackIcon(result.category);
-                iconHtml = `<div class="result-icon result-icon-fallback">${fallbackSvg}</div>`;
+                iconHtml = `<div class="result-icon result-icon-fallback" data-icon-pending="${index}">${fallbackSvg}</div>`;
             }
 
             html += `
@@ -302,18 +320,36 @@ class Blight {
                 e.preventDefault();
                 this.selectedIndex = parseInt(item.dataset.index);
                 this.renderResults();
-                this.showContextMenu(e.clientX, e.clientY, item.dataset.id);
+                this.showContextMenu(e.clientX, e.clientY, item.dataset.id, item.querySelector('.result-title')?.textContent || '');
             });
+        });
+
+        // Async icon loading: load icons for results that have a path but no icon
+        this.results.forEach((result, index) => {
+            if (result.path && (!result.icon || !result.icon.startsWith('data:'))) {
+                GetIcon(result.path).then(icon => {
+                    if (!icon) return;
+                    const pending = this.resultsContainer.querySelector(`[data-icon-pending="${index}"]`);
+                    if (pending) {
+                        pending.outerHTML = `<div class="result-icon"><img src="${icon}" alt=""/></div>`;
+                    }
+                }).catch(() => {});
+            }
         });
     }
 
     // --- Context Menu ---
 
-    async showContextMenu(x, y, resultId) {
+    async showContextMenu(x, y, resultId, resultTitle) {
         this.contextTarget = resultId;
         const actions = await GetContextActions(resultId);
 
+        if (actions.length === 0) return;
+
         let html = '';
+        if (resultTitle) {
+            html += `<div class="context-menu-header">${resultTitle}</div>`;
+        }
         actions.forEach(action => {
             html += `
                 <button class="context-action" data-action="${action.id}">
@@ -326,6 +362,9 @@ class Blight {
         this.contextMenuEl.innerHTML = html;
         this.contextMenuEl.classList.remove('hidden');
 
+        // Position with boundary clamping (measure after adding to DOM)
+        this.contextMenuEl.style.left = '0px';
+        this.contextMenuEl.style.top = '0px';
         const rect = this.contextMenuEl.getBoundingClientRect();
         const maxX = window.innerWidth - rect.width - 8;
         const maxY = window.innerHeight - rect.height - 8;
@@ -337,14 +376,38 @@ class Blight {
                 const actionId = btn.dataset.action;
                 const response = await ExecuteContextAction(this.contextTarget, actionId);
                 this.hideContextMenu();
-
-                if (actionId === 'copy-path') {
-                    this.showToast('Path copied', 'Copied to clipboard');
-                } else if (response === 'ok' && actionId !== 'explorer') {
-                    this.showToast(`Launched`, this.contextTarget);
-                }
+                this.handleContextResponse(actionId, response, resultTitle);
             });
         });
+    }
+
+    handleContextResponse(actionId, response, title) {
+        switch (actionId) {
+            case 'copy-path':
+                this.showToast('Path copied', title);
+                break;
+            case 'copy-name':
+                this.showToast('Name copied', title);
+                break;
+            case 'copy':
+                this.showToast('Copied to clipboard', title);
+                break;
+            case 'delete':
+                this.showToast('Deleted', title);
+                this.loadDefaultResults();
+                break;
+            case 'admin':
+                if (response === 'ok') this.showToast(`Launched as admin`, title);
+                else if (response && response !== 'ok') this.showToast('Failed', response);
+                break;
+            case 'open':
+            case 'run':
+                if (response === 'ok') this.showToast(`Launched`, title);
+                break;
+            case 'explorer':
+                // no toast needed
+                break;
+        }
     }
 
     hideContextMenu() {
@@ -352,12 +415,120 @@ class Blight {
         this.contextTarget = null;
     }
 
+    // --- Settings Panel ---
+
+    async openSettings() {
+        this.settingsPanelEl.classList.remove('hidden');
+        // Reset animation
+        this.settingsPanelEl.style.animation = 'none';
+        this.settingsPanelEl.offsetHeight; // force reflow
+        this.settingsPanelEl.style.animation = '';
+
+        try {
+            const [config, version] = await Promise.all([GetConfig(), GetVersion()]);
+
+            const hotkeyDisplay = document.getElementById('settings-hotkey-display');
+            if (hotkeyDisplay) hotkeyDisplay.textContent = config.hotkey || 'Alt+Space';
+
+            const clipSizeInput = document.getElementById('settings-clipboard-size');
+            if (clipSizeInput) clipSizeInput.value = config.maxClipboard || 50;
+
+            const versionEl = document.getElementById('settings-version');
+            if (versionEl) versionEl.textContent = `v${version}`;
+
+            const indexStatus = document.getElementById('settings-index-status');
+            if (indexStatus) {
+                // Reflect current index state from last notification
+                const lastNotif = this.notifications[0];
+                if (lastNotif) indexStatus.textContent = lastNotif.message;
+            }
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+        }
+    }
+
+    closeSettings() {
+        this.settingsPanelEl.classList.add('hidden');
+        this.searchInput.focus();
+    }
+
+    bindSettings() {
+        const closeBtn = document.getElementById('settings-close');
+        if (closeBtn) closeBtn.addEventListener('click', () => this.closeSettings());
+
+        const saveBtn = document.getElementById('settings-save');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const hotkey = document.getElementById('settings-hotkey-display')?.textContent || 'Alt+Space';
+                const maxClipboard = parseInt(document.getElementById('settings-clipboard-size')?.value || '50', 10);
+                try {
+                    await SaveSettings(hotkey, maxClipboard);
+                    this.showToast('Settings saved', 'Changes applied');
+                    this.closeSettings();
+                } catch (e) {
+                    this.showToast('Save failed', String(e));
+                }
+            });
+        }
+
+        const reindexBtn = document.getElementById('settings-reindex');
+        if (reindexBtn) {
+            reindexBtn.addEventListener('click', async () => {
+                await ReindexFiles();
+                const statusEl = document.getElementById('settings-index-status');
+                if (statusEl) statusEl.textContent = 'Reindexing…';
+                this.showToast('Reindexing files', 'This may take a moment');
+            });
+        }
+
+        const clearBtn = document.getElementById('settings-clear-index');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', async () => {
+                await ClearIndex();
+                const statusEl = document.getElementById('settings-index-status');
+                if (statusEl) statusEl.textContent = 'Index cleared';
+                this.showToast('Index cleared', '');
+            });
+        }
+
+        const checkUpdatesBtn = document.getElementById('settings-check-updates');
+        if (checkUpdatesBtn) {
+            checkUpdatesBtn.addEventListener('click', async () => {
+                checkUpdatesBtn.disabled = true;
+                checkUpdatesBtn.textContent = 'Checking…';
+                try {
+                    const update = await CheckForUpdates();
+                    if (update && update.available) {
+                        this.showToast(`Update available: v${update.version}`, 'Click the update badge to install');
+                        this.showUpdateUI(update);
+                    } else if (update && update.error) {
+                        this.showToast('Check failed', update.error);
+                    } else {
+                        this.showToast('Up to date', 'No updates available');
+                    }
+                } catch (e) {
+                    this.showToast('Check failed', String(e));
+                } finally {
+                    checkUpdatesBtn.disabled = false;
+                    checkUpdatesBtn.textContent = 'Check for Updates';
+                }
+            });
+        }
+
+        // Update index status in settings when events arrive
+        EventsOn('indexStatus', (status) => {
+            const statusEl = document.getElementById('settings-index-status');
+            if (statusEl && !this.settingsPanelEl.classList.contains('hidden')) {
+                statusEl.textContent = status.message;
+            }
+        });
+    }
+
     // --- Fallback Icons ---
 
     getFallbackIcon(category) {
         const c = (category || '').toLowerCase();
         if (c === 'applications' || c === 'recent' || c === 'suggested') {
-            // App icon: rounded square with grid
             return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="2" y="2" width="20" height="20" rx="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
                 <rect x="5" y="5" width="6" height="6" rx="1.5" fill="rgba(255,255,255,0.2)"/>
@@ -367,7 +538,6 @@ class Blight {
             </svg>`;
         }
         if (c === 'files') {
-            // Document icon
             return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M6 2C4.9 2 4 2.9 4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6H6z" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
                 <path d="M14 2v6h6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
@@ -376,13 +546,11 @@ class Blight {
             </svg>`;
         }
         if (c === 'system') {
-            // Gear icon
             return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
                 <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
             </svg>`;
         }
-        // Generic fallback
         return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="9" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
             <circle cx="12" cy="12" r="3" fill="rgba(255,255,255,0.15)"/>
@@ -443,7 +611,6 @@ class Blight {
         this.notifIcon.textContent = icon;
         this.notifText.textContent = message;
 
-        // Add to history
         this.notifications.unshift({
             icon,
             message,
@@ -451,7 +618,6 @@ class Blight {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         });
 
-        // Keep max 20 notifications
         if (this.notifications.length > 20) {
             this.notifications = this.notifications.slice(0, 20);
         }
@@ -460,13 +626,11 @@ class Blight {
     }
 
     bindNotificationUI() {
-        // Toggle history on click
         this.notifIndicator.addEventListener('click', (e) => {
             e.stopPropagation();
             this.notifHistory.classList.toggle('hidden');
         });
 
-        // Clear button
         if (this.notifClear) {
             this.notifClear.addEventListener('click', () => {
                 this.notifications = [];
@@ -474,14 +638,12 @@ class Blight {
             });
         }
 
-        // Show history on hover
         this.notifIndicator.addEventListener('mouseenter', () => {
             if (this.notifications.length > 0) {
                 this.notifHistory.classList.remove('hidden');
             }
         });
 
-        // Hide when mouse leaves the whole area
         const footer = this.notifIndicator.closest('.footer');
         footer.addEventListener('mouseleave', () => {
             this.notifHistory.classList.add('hidden');

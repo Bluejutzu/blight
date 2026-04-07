@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"blight/internal/apps"
@@ -181,15 +180,12 @@ func (a *App) InstallUpdate() string {
 		return "Update failed: " + err.Error()
 	}
 
-	log.Info("update applied — NSIS installer will handle the restart")
+	log.Info("update applied — NSIS installer will handle kill and relaunch")
 
-	// The NSIS installer (run with /S) kills the process and relaunches.
-	// Give it a moment then quit so the installer can replace the binary.
-	go func() {
-		time.Sleep(2 * time.Second)
-		runtime.Quit(a.ctx)
-	}()
-
+	// The NSIS installer runs silently: it does taskkill /f /im blight.exe,
+	// installs the new version, then launches blight.exe.
+	// We just return "success" so the UI can show a status message.
+	// The installer will forcefully kill us when it's ready.
 	return "success"
 }
 
@@ -202,6 +198,7 @@ func (a *App) ToggleWindow() {
 		runtime.WindowHide(a.ctx)
 		a.visible.Store(false)
 	} else {
+		runtime.EventsEmit(a.ctx, "windowShown")
 		runtime.WindowShow(a.ctx)
 		runtime.WindowSetAlwaysOnTop(a.ctx, true)
 		a.visible.Store(true)
@@ -209,6 +206,7 @@ func (a *App) ToggleWindow() {
 }
 
 func (a *App) ShowWindow() {
+	runtime.EventsEmit(a.ctx, "windowShown")
 	runtime.WindowShow(a.ctx)
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
 	a.visible.Store(true)

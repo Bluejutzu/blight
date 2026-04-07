@@ -109,6 +109,11 @@ Section "Install"
 
     !insertmacro wails.writeUninstaller
 
+    ; In silent mode (/S), MUI_FINISHPAGE_RUN doesn't work — launch manually
+    ${If} ${Silent}
+        Exec "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    ${EndIf}
+
     ; Clean up old direct-download binaries from the user's Downloads folder
     Var /GLOBAL CleanupHandle
     Var /GLOBAL CleanupFile

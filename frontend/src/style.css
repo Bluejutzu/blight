@@ -946,6 +946,15 @@ kbd {
     font-variant-numeric: tabular-nums;
 }
 
+.settings-update-status {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+    min-height: 16px;
+}
+.settings-update-status.success { color: #4ade80; }
+.settings-update-status.error { color: #f87171; }
+
 .settings-btn {
     display: inline-flex;
     align-items: center;

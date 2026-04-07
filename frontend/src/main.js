@@ -61,6 +61,10 @@ class Blight {
     }
 
     showUpdateUI(update) {
+        // Remove any existing update badge to prevent duplicates
+        const existing = document.querySelector('.update-badge');
+        if (existing) existing.remove();
+
         const badge = document.createElement('div');
         badge.className = 'notification-indicator update-badge';
         badge.innerHTML = `
@@ -77,12 +81,12 @@ class Blight {
     }
 
     async installUpdate(update) {
-        if (!confirm(`Install update ${update.version}? The app will restart.`)) return;
+        if (!confirm(`Install update ${update.version}?\nThe installer will close and restart blight automatically.`)) return;
 
         this.showToast('Downloading update…', 'Please wait');
         const res = await InstallUpdate();
         if (res === 'success') {
-            this.showToast('Restarting…', 'Update applied successfully');
+            this.showToast('Installing…', 'blight will restart shortly');
         } else {
             this.showToast('Update failed', res);
         }
@@ -208,10 +212,12 @@ class Blight {
 
         // Click outside the window → hide
         // Guard against the blur that fires immediately after WindowShow (Alt+Space race).
-        this.lastFocusAt = 0;
-        window.addEventListener('focus', () => { this.lastFocusAt = Date.now(); });
+        // We use a Wails event from Go (emitted right before WindowShow) because the
+        // browser 'focus' event is unreliable in WebView2.
+        this.lastShownAt = 0;
+        EventsOn('windowShown', () => { this.lastShownAt = Date.now(); });
         window.addEventListener('blur', () => {
-            if (Date.now() - this.lastFocusAt < 600) return; // window just gained focus — ignore
+            if (Date.now() - this.lastShownAt < 800) return;
             if (this.settingsPanelEl.classList.contains('hidden')) {
                 HideWindow();
             }
@@ -513,22 +519,36 @@ class Blight {
         }
 
         const checkUpdatesBtn = document.getElementById('settings-check-updates');
+        const updateStatus = document.getElementById('settings-update-status');
         if (checkUpdatesBtn) {
             checkUpdatesBtn.addEventListener('click', async () => {
                 checkUpdatesBtn.disabled = true;
                 checkUpdatesBtn.textContent = 'Checking…';
+                if (updateStatus) { updateStatus.textContent = ''; updateStatus.className = 'settings-update-status'; }
                 try {
                     const update = await CheckForUpdates();
                     if (update && update.available) {
-                        this.showToast(`Update available: v${update.version}`, 'Click the update badge to install');
+                        if (updateStatus) {
+                            updateStatus.textContent = `v${update.version} available — click badge in footer to install`;
+                            updateStatus.className = 'settings-update-status success';
+                        }
                         this.showUpdateUI(update);
                     } else if (update && update.error) {
-                        this.showToast('Check failed', update.error);
+                        if (updateStatus) {
+                            updateStatus.textContent = update.error;
+                            updateStatus.className = 'settings-update-status error';
+                        }
                     } else {
-                        this.showToast('Up to date', 'No updates available');
+                        if (updateStatus) {
+                            updateStatus.textContent = 'You\'re on the latest version';
+                            updateStatus.className = 'settings-update-status';
+                        }
                     }
                 } catch (e) {
-                    this.showToast('Check failed', String(e));
+                    if (updateStatus) {
+                        updateStatus.textContent = String(e);
+                        updateStatus.className = 'settings-update-status error';
+                    }
                 } finally {
                     checkUpdatesBtn.disabled = false;
                     checkUpdatesBtn.textContent = 'Check for Updates';

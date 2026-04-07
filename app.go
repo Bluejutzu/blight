@@ -202,6 +202,7 @@ func (a *App) ToggleWindow() {
 		runtime.WindowHide(a.ctx)
 		a.visible.Store(false)
 	} else {
+		runtime.EventsEmit(a.ctx, "windowShown")
 		runtime.WindowShow(a.ctx)
 		runtime.WindowSetAlwaysOnTop(a.ctx, true)
 		a.visible.Store(true)
@@ -209,6 +210,7 @@ func (a *App) ToggleWindow() {
 }
 
 func (a *App) ShowWindow() {
+	runtime.EventsEmit(a.ctx, "windowShown")
 	runtime.WindowShow(a.ctx)
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
 	a.visible.Store(true)

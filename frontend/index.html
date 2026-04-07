@@ -176,6 +176,12 @@
             <span class="footer-hint"><kbd>↑↓</kbd> Navigate</span>
             <span class="footer-hint"><kbd>↵</kbd> Open</span>
             <span class="footer-hint"><kbd>Esc</kbd> Close</span>
+            <button id="settings-open-btn" class="footer-settings-btn" title="Settings">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+            </button>
           </div>
           <div id="notification-indicator" class="notification-indicator">
             <span id="notif-icon" class="notif-icon"></span>
@@ -194,6 +200,53 @@
 
     <!-- Context Menu -->
     <div id="context-menu" class="context-menu hidden"></div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="settings-panel hidden">
+      <div class="settings-header">
+        <span class="settings-title">Settings</span>
+        <button id="settings-close" class="settings-close-btn">✕</button>
+      </div>
+      <div class="settings-body">
+
+        <div class="settings-section">
+          <div class="settings-label">Launch Hotkey</div>
+          <div class="settings-row">
+            <div class="hotkey-badge" id="settings-hotkey-display">Alt+Space</div>
+            <span class="settings-hint">Hotkey remapping coming soon</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Clipboard History Size</div>
+          <div class="settings-row">
+            <input id="settings-clipboard-size" class="settings-input" type="number" min="5" max="500" value="50" />
+            <span class="settings-hint">entries stored</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">File Index</div>
+          <div class="settings-row">
+            <button id="settings-reindex" class="settings-btn">Reindex Now</button>
+            <button id="settings-clear-index" class="settings-btn settings-btn-danger">Clear Index</button>
+          </div>
+          <div id="settings-index-status" class="settings-hint settings-index-status"></div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Version</div>
+          <div class="settings-row">
+            <span id="settings-version" class="settings-version-text"></span>
+            <button id="settings-check-updates" class="settings-btn">Check for Updates</button>
+          </div>
+        </div>
+
+      </div>
+      <div class="settings-footer">
+        <button id="settings-save" class="settings-btn settings-btn-primary">Save Settings</button>
+      </div>
+    </div>
 
     <script src="./src/main.js" type="module"></script>
   </body>

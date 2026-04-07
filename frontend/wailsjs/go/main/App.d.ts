@@ -13,7 +13,11 @@ export function Execute(arg1:string):Promise<string>;
 
 export function ExecuteContextAction(arg1:string,arg2:string):Promise<string>;
 
+export function GetConfig():Promise<main.BlightConfig>;
+
 export function GetContextActions(arg1:string):Promise<Array<main.ContextAction>>;
+
+export function SaveSettings(arg1:string,arg2:number):Promise<void>;
 
 export function GetIcon(arg1:string):Promise<string>;
 

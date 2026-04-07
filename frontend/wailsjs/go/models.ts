@@ -22,7 +22,25 @@ export namespace files {
 }
 
 export namespace main {
-	
+
+	export class BlightConfig {
+	    firstRun: boolean;
+	    hotkey: string;
+	    maxClipboard: number;
+	    indexDirs?: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new BlightConfig(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.firstRun = source["firstRun"];
+	        this.hotkey = source["hotkey"];
+	        this.maxClipboard = source["maxClipboard"];
+	        this.indexDirs = source["indexDirs"];
+	    }
+	}
 	export class ContextAction {
 	    id: string;
 	    label: string;

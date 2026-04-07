@@ -22,8 +22,16 @@ export function ExecuteContextAction(arg1, arg2) {
   return window['go']['main']['App']['ExecuteContextAction'](arg1, arg2);
 }
 
+export function GetConfig() {
+  return window['go']['main']['App']['GetConfig']();
+}
+
 export function GetContextActions(arg1) {
   return window['go']['main']['App']['GetContextActions'](arg1);
+}
+
+export function SaveSettings(arg1, arg2) {
+  return window['go']['main']['App']['SaveSettings'](arg1, arg2);
 }
 
 export function GetIcon(arg1) {

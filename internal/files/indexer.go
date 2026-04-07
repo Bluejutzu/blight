@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"blight/internal/search"
 )
 
 type FileEntry struct {
@@ -182,28 +184,26 @@ func (idx *FileIndex) manualIndex() {
 	})
 }
 
-// SearchFiles performs substring matching against the local index.
-// Matches on filename, extension, and path components.
+// SearchFiles performs fuzzy matching against the local index filename.
 func (idx *FileIndex) SearchFiles(query string) []FileEntry {
 	if query == "" {
 		return nil
 	}
 
 	idx.mu.RLock()
-	defer idx.mu.RUnlock()
+	names := idx.names
+	allFiles := idx.files
+	idx.mu.RUnlock()
 
-	q := strings.ToLower(query)
+	emptyScores := make([]int, len(names))
+	matches := search.Fuzzy(strings.ToLower(query), names, emptyScores)
+
 	var results []FileEntry
-
-	for _, f := range idx.files {
-		nameLower := strings.ToLower(f.Name)
-		pathLower := strings.ToLower(f.Path)
-		if strings.Contains(nameLower, q) || strings.Contains(pathLower, q) {
-			results = append(results, f)
-			if len(results) >= 15 {
-				break
-			}
+	for _, m := range matches {
+		if len(results) >= 15 {
+			break
 		}
+		results = append(results, allFiles[m.Index])
 	}
 
 	return results

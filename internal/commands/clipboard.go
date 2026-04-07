@@ -82,6 +82,30 @@ func (h *ClipboardHistory) CopyToClipboard(index int) bool {
 	return true
 }
 
+func (h *ClipboardHistory) Delete(index int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if index < 0 || index >= len(h.entries) {
+		return
+	}
+
+	h.entries = append(h.entries[:index], h.entries[index+1:]...)
+	go h.save()
+}
+
+func (h *ClipboardHistory) SetMaxSize(n int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if n < 1 {
+		n = 1
+	}
+	h.maxSize = n
+	if len(h.entries) > h.maxSize {
+		h.entries = h.entries[:h.maxSize]
+	}
+}
+
 func (h *ClipboardHistory) PollClipboard() {
 	lastContent := ""
 	for {

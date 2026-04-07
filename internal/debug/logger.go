@@ -46,7 +46,7 @@ var once sync.Once
 func Init() *Logger {
 	once.Do(func() {
 		env := os.Getenv("BLIGHT_ENV")
-		enabled := env != "production"
+		enabled := env == "dev" || env == "development" || env == "debug"
 
 		home, _ := os.UserHomeDir()
 		logDir := filepath.Join(home, ".blight")

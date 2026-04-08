@@ -28,6 +28,7 @@ class Blight {
 
         // Icon cache: path → base64 data URI (persists across re-renders)
         this.iconCache = new Map();
+        this.renderSeq = 0;
 
         // Notification history
         this.notifications = [];
@@ -111,7 +112,7 @@ class Blight {
     showLauncher() {
         this.splashEl.classList.add('hidden');
         this.launcherEl.classList.remove('hidden');
-        this.searchInput.focus();
+        setTimeout(() => this.searchInput.focus(), 50);
         this.bindEvents();
         this.listenIndexStatus();
         this.bindNotificationUI();
@@ -359,6 +360,7 @@ class Blight {
     // --- Rendering ---
 
     renderResults() {
+        const renderSeq = ++this.renderSeq;
         if (this.results.length === 0) {
             this.resultsContainer.innerHTML = `
                 <div class="no-results">
@@ -431,7 +433,7 @@ class Blight {
             if (!result.path || this.iconCache.has(result.path)) return;
             if (result.icon && result.icon.startsWith('data:')) return;
             GetIcon(result.path).then(icon => {
-                if (!icon) return;
+                if (!icon || this.renderSeq !== renderSeq) return;
                 this.iconCache.set(result.path, icon);
                 const el = this.resultsContainer.querySelector(`[data-icon-index="${index}"]`);
                 if (el) el.outerHTML = `<div class="result-icon"><img src="${icon}" alt=""/></div>`;
@@ -690,6 +692,9 @@ class Blight {
     bindSettings() {
         const closeBtn = document.getElementById('settings-close');
         if (closeBtn) closeBtn.addEventListener('click', () => this.closeSettings());
+
+        const cancelBtn = document.getElementById('settings-cancel');
+        if (cancelBtn) cancelBtn.addEventListener('click', () => this.closeSettings());
 
         const saveBtn = document.getElementById('settings-save');
         if (saveBtn) {

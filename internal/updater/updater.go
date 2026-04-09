@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -118,7 +117,7 @@ func (u *Updater) ApplyUpdate(release *Release) error {
 		return fmt.Errorf("download write failed: %w", copyErr)
 	}
 
-	cmd := exec.Command(dest)
+	cmd := installerCommand(dest)
 	cmd.SysProcAttr = installerSysProcAttr()
 	return cmd.Start()
 }

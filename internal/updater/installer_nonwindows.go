@@ -21,5 +21,5 @@ func installerTempName() string {
 }
 
 func installerSysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{}
+	return &syscall.SysProcAttr{Setsid: true}
 }

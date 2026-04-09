@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os/exec"
-	"strings"
 )
 
 const consoleHTML = `<!DOCTYPE html>
@@ -723,6 +721,5 @@ func StartConsole(logger *Logger) (int, error) {
 }
 
 func OpenInBrowser(port int) {
-	url := fmt.Sprintf("http://127.0.0.1:%d", port)
-	exec.Command("cmd", "/c", "start", "", strings.ReplaceAll(url, "&", "^&")).Start()
+	openBrowser(fmt.Sprintf("http://127.0.0.1:%d", port))
 }

@@ -36,19 +36,16 @@ func IsInstalled() (bool, error) {
 	return strings.HasPrefix(strings.ToLower(absExe), strings.ToLower(absInstall)), nil
 }
 
-// GetInstallDir returns the installation directory in LocalAppData.
+// GetInstallDir returns the platform-appropriate installation directory.
+// Windows: %LOCALAPPDATA%\Blight
+// macOS:   ~/Library/Application Support/Blight
+// Linux:   ~/.local/share/Blight  (XDG_DATA_HOME)
 func GetInstallDir() (string, error) {
-	localAppData := os.Getenv("LOCALAPPDATA")
-	if localAppData == "" {
-		// Fallback to UserConfigDir (Roaming) if LocalAppData is not set
-		dir, err := os.UserConfigDir()
-		if err != nil {
-			return "", fmt.Errorf("failed to get user config dir: %w", err)
-		}
-		localAppData = dir
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user config dir: %w", err)
 	}
-
-	return filepath.Join(localAppData, AppName), nil
+	return filepath.Join(dir, AppName), nil
 }
 
 // Install copies the current executable to the installation directory.

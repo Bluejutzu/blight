@@ -157,9 +157,9 @@ func drawSimpleGlyph(img *image.RGBA, char rune, c color.RGBA) {
 }
 
 func hashByte(s string, offset int) uint8 {
-	h := 2166136261
+	var h uint32 = 2166136261
 	for i, b := range []byte(s) {
-		h ^= int(b) + offset + i
+		h ^= uint32(b) + uint32(offset) + uint32(i)
 		h *= 16777619
 	}
 	v := 40 + (h % 170)

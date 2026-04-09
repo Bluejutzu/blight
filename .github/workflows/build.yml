@@ -41,6 +41,12 @@ jobs:
         working-directory: frontend
         run: pnpm install
 
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev libx11-dev libwebkit2gtk-4.0-dev || sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev libx11-dev libwebkit2gtk-4.1-dev
+
       - name: Install NSIS
         if: matrix.os == 'windows-latest'
         run: choco install nsis -y
@@ -49,6 +55,6 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: wails build -nsis -ldflags "-X main.Version=0.0.0-ci"
 
-      - name: Wails CLI smoke test
+      - name: Build app package (dry run — no upload)
         if: matrix.os != 'windows-latest'
-        run: wails doctor
+        run: wails build -ldflags "-X main.Version=0.0.0-ci"

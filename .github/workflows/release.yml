@@ -62,6 +62,12 @@ jobs:
           - os: windows-latest
             artifact_name: blight-windows-amd64-setup
             artifact_path: blight-windows-amd64-setup.exe
+          - os: ubuntu-latest
+            artifact_name: blight-linux-amd64-tar-gz
+            artifact_path: blight-linux-amd64.tar.gz
+          - os: macos-latest
+            artifact_name: blight-macos-amd64-dmg
+            artifact_path: blight-macos-amd64.dmg
     steps:
       - uses: actions/checkout@v4
 
@@ -90,6 +96,12 @@ jobs:
         working-directory: frontend
         run: pnpm install
 
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev libx11-dev libwebkit2gtk-4.0-dev || sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev libx11-dev libwebkit2gtk-4.1-dev
+
       - name: Install NSIS
         if: matrix.os == 'windows-latest'
         run: |
@@ -104,6 +116,20 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: bash
         run: cp build/bin/blight-amd64-installer.exe blight-windows-amd64-setup.exe
+
+      - name: Build Linux package
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          wails build -ldflags "-X main.Version=${{ needs.check-version.outputs.version }}"
+          tar -C build/bin -czf blight-linux-amd64.tar.gz blight
+
+      - name: Build macOS installer
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          wails build -ldflags "-X main.Version=${{ needs.check-version.outputs.version }}"
+          hdiutil create -volname "blight" -srcfolder "build/bin/blight.app" -ov -format UDZO blight-macos-amd64.dmg
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
@@ -177,11 +203,15 @@ jobs:
 
             ## Install
 
-            Download **`blight-windows-amd64-setup.exe`** below and run it.
-            Installs to your user folder — no admin prompt. Starts with Windows automatically.
+            Download the installer/package for your platform from the assets below:
+            - **Windows:** `blight-windows-amd64-setup.exe`
+            - **Linux:** `blight-linux-amd64.tar.gz`
+            - **macOS:** `blight-macos-amd64.dmg`
 
             ---
 
             Built from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) · `${{ github.ref_name }}`
           files: |
             artifacts/blight-windows-amd64-setup/*
+            artifacts/blight-linux-amd64-tar-gz/*
+            artifacts/blight-macos-amd64-dmg/*

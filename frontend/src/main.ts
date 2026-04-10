@@ -7,11 +7,11 @@ import {
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { main, files } from '../wailsjs/go/models';
 
-interface Notification {
+interface SystemNotif {
     icon: string;
-    message: string;
-    state: string;
-    time: string;
+    title: string;
+    subtitle: string;
+    action?: () => void;
 }
 
 function inputEl(id: string): HTMLInputElement | null {
@@ -44,7 +44,7 @@ class Blight {
     iconCache: Map<string, string>;
     renderSeq: number;
 
-    notifications: Notification[];
+    activeNotifs: Map<string, SystemNotif>;
     _currentIndexDirs: string[];
     lastUpdateCheck: number;
 
@@ -58,12 +58,6 @@ class Blight {
     launcherEl: HTMLElement;
     contextMenuEl: HTMLElement;
     settingsPanelEl: HTMLElement;
-    notifIndicator: HTMLElement;
-    notifIcon: HTMLElement;
-    notifText: HTMLElement;
-    notifHistory: HTMLElement;
-    notifHistoryList: HTMLElement | null;
-    notifClear: HTMLElement | null;
 
     constructor() {
         this.selectedIndex = 0;
@@ -85,7 +79,7 @@ class Blight {
         this.iconCache = new Map();
         this.renderSeq = 0;
 
-        this.notifications = [];
+        this.activeNotifs = new Map();
         this._currentIndexDirs = [];
         this.lastUpdateCheck = 0;
 
@@ -99,13 +93,6 @@ class Blight {
         this.launcherEl = document.getElementById('app')!;
         this.contextMenuEl = document.getElementById('context-menu')!;
         this.settingsPanelEl = document.getElementById('settings-panel')!;
-        this.notifIndicator = document.getElementById('notification-indicator')!;
-        this.notifIcon = document.getElementById('notif-icon')!;
-        this.notifText = document.getElementById('notif-text')!;
-        this.notifHistory = document.getElementById('notification-history')!;
-        this.notifHistoryList = document.getElementById('notif-history-list');
-        this.notifClear = document.getElementById('notif-clear');
-
         this.init();
     }
 
@@ -149,19 +136,14 @@ class Blight {
     }
 
     showUpdateUI(update: main.UpdateInfo): void {
-        // Footer badge
-        const existing = document.querySelector('.update-badge');
-        if (existing) existing.remove();
-        const badge = document.createElement('div');
-        badge.className = 'notification-indicator update-badge';
-        badge.innerHTML = `<span class="notif-icon" style="color:#4ade80;">⬇</span><span class="notif-text" style="color:#4ade80;">Update ${update.version}</span>`;
-        badge.style.cursor = 'pointer';
-        badge.onclick = () => this.installUpdate(update);
-        if (this.notifIndicator?.parentNode) {
-            this.notifIndicator.parentNode.insertBefore(badge, this.notifIndicator);
-        }
+        this.activeNotifs.set('update', {
+            icon: '⬇',
+            title: `Update v${update.version} available`,
+            subtitle: 'Click to install',
+            action: () => this.installUpdate(update),
+        });
+        this._refreshSystemNotifs();
 
-        // In-settings install row
         const row = document.getElementById('settings-update-install-row');
         const label = document.getElementById('settings-update-version-label');
         const installBtn = document.getElementById('settings-install-update') as HTMLButtonElement | null;
@@ -231,7 +213,6 @@ class Blight {
         setTimeout(() => this.searchInput.focus(), 50);
         this.bindEvents();
         this.listenIndexStatus();
-        this.bindNotificationUI();
         this.bindSettings();
         this.loadDefaultResults();
     }
@@ -336,9 +317,6 @@ class Blight {
             if (target instanceof Node) {
                 if (!this.contextMenuEl.contains(target)) {
                     this.hideContextMenu();
-                }
-                if (!this.notifIndicator.contains(target) && !this.notifHistory.contains(target)) {
-                    this.notifHistory.classList.add('hidden');
                 }
             }
         });
@@ -600,6 +578,7 @@ class Blight {
         });
 
         this.updateFooterHints(this.results[this.selectedIndex] ?? null);
+        this._refreshSystemNotifs();
     }
 
     updateFooterHints(result: main.SearchResult | null): void {
@@ -879,8 +858,8 @@ class Blight {
 
             const indexStatus = document.getElementById('settings-index-status');
             if (indexStatus) {
-                const lastNotif = this.notifications[0];
-                if (lastNotif) indexStatus.textContent = lastNotif.message;
+                const s = this.activeNotifs.get('indexing');
+                indexStatus.textContent = s ? s.title + ' ' + s.subtitle : '—';
             }
 
             this._currentIndexDirs = config.indexDirs || [];
@@ -956,12 +935,17 @@ class Blight {
         }
 
         const reindexBtn = document.getElementById('settings-reindex');
+        const cancelIndexBtn = document.getElementById('settings-cancel-index');
         if (reindexBtn) {
             reindexBtn.addEventListener('click', async () => {
                 await ReindexFiles();
                 const statusEl = document.getElementById('settings-index-status');
                 if (statusEl) statusEl.textContent = 'Reindexing…';
-                this.showToast('Reindexing files', 'This may take a moment');
+            });
+        }
+        if (cancelIndexBtn) {
+            cancelIndexBtn.addEventListener('click', () => {
+                (window as any)['go']['main']['App']['CancelIndex']();
             });
         }
 
@@ -1037,9 +1021,12 @@ class Blight {
 
         EventsOn('indexStatus', (status: files.IndexStatus) => {
             const statusEl = document.getElementById('settings-index-status');
-            if (statusEl && !this.settingsPanelEl.classList.contains('hidden')) {
-                statusEl.textContent = status.message;
-            }
+            if (statusEl) statusEl.textContent = status.message;
+            const reindexBtn = document.getElementById('settings-reindex') as HTMLButtonElement | null;
+            const cancelBtn = document.getElementById('settings-cancel-index');
+            const indexing = status.state === 'indexing';
+            if (reindexBtn) reindexBtn.disabled = indexing;
+            if (cancelBtn) cancelBtn.classList.toggle('hidden', !indexing);
         });
 
         // Misc tab
@@ -1198,81 +1185,56 @@ class Blight {
         }, 5000);
     }
 
-    // --- Notification Indicator ---
+    // --- System Notifications (pinned top of results) ---
 
     listenIndexStatus(): void {
         EventsOn('indexStatus', (status: files.IndexStatus) => {
-            const stateIcons: Record<string, string> = {
-                checking: '🔍',
-                indexing: '📁',
-                ready: '✓',
-                idle: '—',
-            };
-            const icon = stateIcons[status.state] ?? '';
-            this.setNotification(icon, status.message, status.state);
-        });
-    }
-
-    setNotification(icon: string, message: string, state: string): void {
-        this.notifIcon.textContent = icon;
-        this.notifText.textContent = message;
-
-        this.notifications.unshift({
-            icon,
-            message,
-            state,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        });
-
-        if (this.notifications.length > 20) {
-            this.notifications = this.notifications.slice(0, 20);
-        }
-
-        this.renderNotificationHistory();
-    }
-
-    bindNotificationUI(): void {
-        this.notifIndicator.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.notifHistory.classList.toggle('hidden');
-        });
-
-        if (this.notifClear) {
-            this.notifClear.addEventListener('click', () => {
-                this.notifications = [];
-                this.renderNotificationHistory();
-            });
-        }
-
-        this.notifIndicator.addEventListener('mouseenter', () => {
-            if (this.notifications.length > 0) {
-                this.notifHistory.classList.remove('hidden');
+            if (status.state === 'indexing') {
+                const sub = status.count > 0
+                    ? `${status.count.toLocaleString()} files scanned`
+                    : status.message;
+                this.activeNotifs.set('indexing', { icon: '⏳', title: 'Indexing files…', subtitle: sub });
+            } else {
+                this.activeNotifs.delete('indexing');
             }
-        });
-
-        const footer = this.notifIndicator.closest('.footer');
-        footer?.addEventListener('mouseleave', () => {
-            this.notifHistory.classList.add('hidden');
+            this._refreshSystemNotifs();
         });
     }
 
-    renderNotificationHistory(): void {
-        if (!this.notifHistoryList) return;
+    _refreshSystemNotifs(): void {
+        if (this.launcherEl.classList.contains('spotlight-mode')) return;
 
-        if (this.notifications.length === 0) {
-            this.notifHistoryList.innerHTML = '<div class="notif-history-empty">No notifications</div>';
+        const existing = document.getElementById('system-notifs-section');
+
+        if (this.activeNotifs.size === 0) {
+            existing?.remove();
             return;
         }
 
-        this.notifHistoryList.innerHTML = this.notifications.map(n => `
-            <div class="notif-history-item">
-                <span class="notif-h-icon">${n.icon}</span>
-                <div class="notif-h-text">
-                    <div class="notif-h-msg">${this.escapeHtml(n.message)}</div>
-                    <div class="notif-h-time">${n.time}</div>
+        let inner = `<div class="result-category">Notification</div>`;
+        for (const [id, n] of this.activeNotifs) {
+            inner += `<div class="result-item notif-result-item" data-notif-id="${this.escapeHtml(id)}" style="${n.action ? 'cursor:pointer' : ''}">
+                <div class="result-icon-fallback">${n.icon}</div>
+                <div class="result-text">
+                    <div class="result-title">${this.escapeHtml(n.title)}</div>
+                    ${n.subtitle ? `<div class="result-subtitle">${this.escapeHtml(n.subtitle)}</div>` : ''}
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }
+
+        if (existing) {
+            existing.innerHTML = inner;
+        } else {
+            const section = document.createElement('div');
+            section.id = 'system-notifs-section';
+            section.innerHTML = inner;
+            this.resultsContainer.insertBefore(section, this.resultsContainer.firstChild);
+        }
+
+        this.resultsContainer.querySelectorAll<HTMLElement>('[data-notif-id]').forEach(el => {
+            const notif = this.activeNotifs.get(el.dataset['notifId']!);
+            if (notif?.action) el.addEventListener('click', notif.action, { once: true });
+        });
     }
 }
 

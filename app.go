@@ -821,6 +821,10 @@ func (a *App) ReindexFiles() {
 	a.fileIdx.Reindex()
 }
 
+func (a *App) CancelIndex() {
+	a.fileIdx.CancelIndex()
+}
+
 func (a *App) ClearIndex() {
 	a.fileIdx.ClearIndex()
 }

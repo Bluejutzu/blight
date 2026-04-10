@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {files} from '../models';
 
+export function CancelIndex():Promise<void>;
+
 export function CheckForUpdates():Promise<main.UpdateInfo>;
 
 export function ClearIndex():Promise<void>;

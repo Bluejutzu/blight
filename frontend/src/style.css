@@ -1373,35 +1373,59 @@ html.no-animations *::after {
 
 .search-filter-pills {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     flex-shrink: 0;
+    /* Hidden by default — slide in when .visible is added */
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-width 180ms cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 140ms ease;
+    pointer-events: none;
+}
+
+.search-filter-pills.visible {
+    max-width: 280px;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* When only the active filter badge is shown, give it a bit more room */
+.search-filter-pills.active-only {
+    max-width: 100px;
 }
 
 .filter-pill {
     font-size: 10px;
-    font-weight: 600;
-    padding: 2px 7px;
+    font-weight: 500;
+    padding: 2px 8px;
     border-radius: 9999px;
-    border: 1px solid var(--border);
-    background: var(--bg-secondary);
+    border: 1px solid transparent;
+    background: var(--bg-hover);
     color: var(--text-tertiary);
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: background var(--transition-fast), color var(--transition-fast),
+                border-color var(--transition-fast);
     user-select: none;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .filter-pill:hover {
-    background: var(--bg-hover);
+    background: var(--bg-selected);
     color: var(--text-secondary);
-    border-color: var(--border-strong);
 }
 
 .filter-pill.active {
     background: var(--accent-soft);
     color: var(--accent);
     border-color: var(--border-focus);
+}
+
+/* The compact "active filter" badge shown when query is cleared */
+.filter-pill-active-badge {
+    font-size: 10px;
+    letter-spacing: 0;
 }
 
 /* === Search History Dropdown === */

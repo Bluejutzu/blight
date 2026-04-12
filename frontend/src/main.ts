@@ -118,8 +118,13 @@ class Blight {
             document.getElementById('search-filter-pills')!,
             (filter) => {
                 this.activeFilter = filter;
-                this.filterPills.render(filter);
-                if (this.currentQuery) this.renderResults();
+                if (this.currentQuery) {
+                    this.filterPills.render(filter);
+                    this.renderResults();
+                } else {
+                    // No query — show only the active badge or hide
+                    filter ? this.filterPills.renderActiveOnly() : this.filterPills.hide();
+                }
             }
         );
 
@@ -197,7 +202,7 @@ class Blight {
         this.settings.bind();
         this.loadDefaultResults();
         this.loadUsageScores();
-        this.filterPills.render(null);
+        this.filterPills.hide();
         this.checkWhatsNew();
     }
 
@@ -314,7 +319,8 @@ class Blight {
                     this.searchHistory.hide();
                     if (this.activeFilter) {
                         this.activeFilter = null;
-                        this.filterPills.render(null);
+                        this.filterPills.clearFilter();
+                        this.filterPills.hide();
                         this.renderResults();
                     } else if (this.searchInput.value) {
                         this.searchInput.value = '';
@@ -347,6 +353,9 @@ class Blight {
                 this.currentQuery = '';
                 this._displayResults = [];
                 this.loadDefaultResults();
+                this.activeFilter = null;
+                this.filterPills.clearFilter();
+                this.filterPills.hide();
             }
             setTimeout(() => {
                 this.searchInput.focus();
@@ -374,12 +383,18 @@ class Blight {
             this.loadDefaultResults();
             this.calcPreview.clear();
             this.searchHistory.show();
+            // Clear active filter and hide pills when query is emptied
+            this.activeFilter = null;
+            this.filterPills.clearFilter();
+            this.filterPills.hide();
             return;
         }
         this.searchHistory.hide();
         this.launcherEl.classList.remove('spotlight-mode');
         this.setLoading(true);
         this.calcPreview.update(query);
+        // Show filter pills once the user starts typing
+        this.filterPills.render(this.activeFilter);
         this.debounceTimer = setTimeout(async () => {
             const seq = ++this.searchSeq;
             const results = await Search(query);

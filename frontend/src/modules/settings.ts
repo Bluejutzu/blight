@@ -222,15 +222,15 @@ export class Settings {
         EventsOn('indexStatus', (status: files.IndexStatus) => {
             const statusEl = document.getElementById('settings-index-status');
             if (statusEl) statusEl.textContent = status.message;
-            const reindexBtn = document.getElementById('settings-reindex') as HTMLButtonElement | null;
+            const reindexBtn = document.getElementById('settings-reindex') as HTMLElement & { disabled?: boolean } | null;
             const cancelBtn = document.getElementById('settings-cancel-index');
             const indexing = status.state === 'indexing';
-            if (reindexBtn) reindexBtn.disabled = indexing;
+            if (reindexBtn) reindexBtn.toggleAttribute('disabled', indexing);
             if (cancelBtn) cancelBtn.classList.toggle('hidden', !indexing);
         });
 
         // Updates tab
-        const checkUpdatesBtn = document.getElementById('settings-check-updates') as HTMLButtonElement | null;
+        const checkUpdatesBtn = document.getElementById('settings-check-updates') as HTMLElement & { disabled?: boolean } | null;
         const updateStatus = document.getElementById('settings-update-status');
         if (checkUpdatesBtn) {
             checkUpdatesBtn.addEventListener('click', async () => {
@@ -245,7 +245,7 @@ export class Settings {
                     return;
                 }
                 this.deps.setLastUpdateCheck(Date.now());
-                checkUpdatesBtn.disabled = true;
+                checkUpdatesBtn.toggleAttribute('disabled', true);
                 checkUpdatesBtn.textContent = 'Checking…';
                 if (updateStatus) { updateStatus.textContent = ''; updateStatus.className = 'settings-update-status'; }
                 try {
@@ -273,7 +273,7 @@ export class Settings {
                         updateStatus.className = 'settings-update-status error';
                     }
                 } finally {
-                    checkUpdatesBtn.disabled = false;
+                    checkUpdatesBtn.toggleAttribute('disabled', false);
                     checkUpdatesBtn.textContent = 'Check for Updates';
                 }
             });
@@ -358,7 +358,7 @@ export class Settings {
     showUpdateInstallRow(version: string, onInstall: () => void): void {
         const row = document.getElementById('settings-update-install-row');
         const label = document.getElementById('settings-update-version-label');
-        const installBtn = document.getElementById('settings-install-update') as HTMLButtonElement | null;
+        const installBtn = document.getElementById('settings-install-update') as HTMLElement | null;
         if (row) row.classList.remove('hidden');
         if (label) label.textContent = `v${version} available`;
         if (installBtn) installBtn.onclick = onInstall;

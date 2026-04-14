@@ -312,13 +312,15 @@ export class Settings {
         }
 
         // Updates tab – open external links in the default browser via the backend
-        document.querySelectorAll<HTMLAnchorElement>('.update-res-link, .update-res-github').forEach((a) => {
-            a.addEventListener('click', (e) => {
-                e.preventDefault();
-                const url = a.href;
-                if (url) OpenURL(url);
+        document
+            .querySelectorAll<HTMLAnchorElement>('.update-res-link, .update-res-github')
+            .forEach((a) => {
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const url = a.href;
+                    if (url) OpenURL(url);
+                });
             });
-        });
         // Release notes: event delegation for dynamically-rendered rn-link anchors
         document.getElementById('settings-update-notes')?.addEventListener('click', (e) => {
             const target = (e.target as HTMLElement).closest<HTMLAnchorElement>('a.rn-link');
@@ -593,8 +595,7 @@ export class Settings {
         const close = () => {
             modal.classList.add('hidden');
             canvas.classList.remove('hk-active');
-            if (this._hkKeydownFn)
-                document.removeEventListener('keydown', this._hkKeydownFn, true);
+            if (this._hkKeydownFn) document.removeEventListener('keydown', this._hkKeydownFn, true);
             if (this._hkKeyupFn) document.removeEventListener('keyup', this._hkKeyupFn, true);
             this._hkKeydownFn = null;
             this._hkKeyupFn = null;

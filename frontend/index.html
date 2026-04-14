@@ -178,6 +178,7 @@
             <span id="footer-hint-primary" class="footer-hint"><kbd>↵</kbd> Open</span>
             <span id="footer-hint-actions" class="footer-hint"><kbd>Ctrl+K</kbd> Actions</span>
             <span id="footer-hint-secondary" class="footer-hint footer-hint-secondary hidden"></span>
+            <span class="footer-hint"><kbd>Ctrl+,</kbd> Settings</span>
             <button id="settings-open-btn" class="footer-settings-btn" title="Settings">
               <span class="win-icon" style="font-size:15px">&#xE713;</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -377,6 +378,24 @@
                 </div>
                 <div class="settings-row-control">
                   <fluent-switch id="settings-use-animation" checked></fluent-switch>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section-group">
+              <div class="settings-group-label">Footer Hints</div>
+
+              <div class="settings-row-item">
+                <div class="settings-row-info">
+                  <div class="settings-row-name">Show Keyboard Hints</div>
+                  <div class="settings-row-desc">When to display shortcut hints in the bottom bar</div>
+                </div>
+                <div class="settings-row-control">
+                  <select id="settings-footer-hints" class="settings-select">
+                    <option value="always">Always</option>
+                    <option value="on-search">While searching</option>
+                    <option value="never">Never</option>
+                  </select>
                 </div>
               </div>
             </div>

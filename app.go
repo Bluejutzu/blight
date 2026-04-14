@@ -71,6 +71,7 @@ type BlightConfig struct {
 	ShowPlaceholder bool   `json:"showPlaceholder"` // show search placeholder, default true
 	PlaceholderText string `json:"placeholderText"` // custom placeholder text, default ""
 	Theme           string `json:"theme"`           // "dark"|"light"|"system", default "dark"
+	FooterHints     string `json:"footerHints"`     // "always"|"on-search"|"never", default "always"
 
 	// System integration
 	StartOnStartup bool      `json:"startOnStartup"` // add to Windows startup, default false
@@ -364,6 +365,7 @@ func defaultConfig() BlightConfig {
 		ShowPlaceholder:     true,
 		PlaceholderText:     "",
 		Theme:               "dark",
+		FooterHints:         "always",
 		StartOnStartup:      false,
 		HideNotifyIcon:      false,
 	}
@@ -399,6 +401,9 @@ func (a *App) loadConfig() {
 	}
 	if a.config.Theme == "" {
 		a.config.Theme = "dark"
+	}
+	if a.config.FooterHints == "" {
+		a.config.FooterHints = "always"
 	}
 }
 
@@ -479,6 +484,9 @@ func (a *App) SaveSettings(cfg BlightConfig) error {
 	}
 	if cfg.Theme != "" {
 		a.config.Theme = cfg.Theme
+	}
+	if cfg.FooterHints != "" {
+		a.config.FooterHints = cfg.FooterHints
 	}
 	if cfg.PlaceholderText != "" {
 		a.config.PlaceholderText = cfg.PlaceholderText

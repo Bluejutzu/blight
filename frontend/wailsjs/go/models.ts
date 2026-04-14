@@ -37,6 +37,7 @@ export namespace main {
 	    showPlaceholder: boolean;
 	    placeholderText: string;
 	    theme: string;
+	    footerHints: string;
 	    startOnStartup: boolean;
 	    hideNotifyIcon: boolean;
 	    // Go type: time
@@ -64,6 +65,7 @@ export namespace main {
 	        this.showPlaceholder = source["showPlaceholder"];
 	        this.placeholderText = source["placeholderText"];
 	        this.theme = source["theme"];
+	        this.footerHints = source["footerHints"];
 	        this.startOnStartup = source["startOnStartup"];
 	        this.hideNotifyIcon = source["hideNotifyIcon"];
 	        this.lastIndexedAt = this.convertValues(source["lastIndexedAt"], null);

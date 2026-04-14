@@ -2193,9 +2193,9 @@ fluent-switch::part(checked-indicator) {
 
 /* ============================================================
    WINDOWS 11 — Fluent Design System
-   Mica backdrop (main.go) sits behind the WebView.
-   Only the launcher chrome is translucent — overlays/panels
-   stay opaque so they don't double-stack transparency.
+   Window is transparent (no DWM backdrop material) — only the
+   launcher card is visible; areas outside it show the desktop.
+   Overlays/panels stay opaque so they don't double-stack transparency.
    Interactive controls use Fluent web-components (see main.ts).
    ============================================================ */
 
@@ -2210,20 +2210,20 @@ fluent-switch::part(checked-indicator) {
     --border-strong: rgba(255, 255, 255, 0.10);
     --border-focus:  rgba(92, 154, 255, 0.70);
 
-    /* Fluent shadow (Mica provides the depth, so shadows are lighter) */
+    /* Fluent shadow — card floats on transparent background */
     --shadow-window:  0 0 0 1px rgba(255,255,255,0.07), 0 8px 32px rgba(0,0,0,0.55);
     --shadow-context: 0 0 0 1px rgba(255,255,255,0.07), 0 4px 16px rgba(0,0,0,0.50);
 }
 
-/* Launcher chrome: semi-transparent so Mica bleeds through */
+/* Launcher chrome: fully opaque — floats on transparent window */
 [data-os="windows"] .launcher {
-    background: rgba(28, 28, 30, 0.72);
+    background: #202020;
     border-color: rgba(255, 255, 255, 0.06);
 }
 
-/* Splash: same Mica-aware transparency */
+/* Splash: fully opaque */
 [data-os="windows"] .splash {
-    background: rgba(28, 28, 30, 0.82);
+    background: #1a1a1c;
 }
 
 /* Settings panel: OPAQUE — it is a full overlay and must be readable */

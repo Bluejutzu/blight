@@ -91,7 +91,7 @@ func main() {
 			DisableWindowIcon:                 false,
 			DisableFramelessWindowDecorations: true,
 			Theme:                             windows.SystemDefault,
-			BackdropType:                      windows.Mica,
+			BackdropType:                      windows.None,
 		},
 	})
 
@@ -132,7 +132,7 @@ func runSettingsWindow(log *debug.Logger) {
 			WindowIsTranslucent:               true,
 			DisableFramelessWindowDecorations: true,
 			Theme:                             windows.SystemDefault,
-			BackdropType:                      windows.Mica,
+			BackdropType:                      windows.None,
 		},
 	})
 

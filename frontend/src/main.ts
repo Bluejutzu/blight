@@ -710,7 +710,7 @@ class Blight {
 
     getSecondaryActionId(resultId: string): string | null {
         if (resultId.startsWith('dir-open:')) return 'terminal';
-        if (resultId.startsWith('file-open:')) return 'explorer';
+        if (resultId.startsWith('file-open:')) return null;
         if (resultId.startsWith('clip-')) return 'copy';
         if (
             resultId.startsWith('sys-') ||

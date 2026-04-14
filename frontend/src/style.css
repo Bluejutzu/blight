@@ -1328,7 +1328,7 @@ kbd {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     background: var(--bg-secondary);
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     text-decoration: none;
     transition: color var(--transition-fast), background var(--transition-fast);
 }

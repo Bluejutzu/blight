@@ -368,6 +368,32 @@ class Blight {
                         this.settings.open();
                     }
                     break;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                    if (e.ctrlKey && this.currentQuery) {
+                        e.preventDefault();
+                        const filterMap: Record<string, string> = {
+                            '1': 'applications',
+                            '2': 'files',
+                            '3': 'folders',
+                            '4': 'clipboard',
+                            '5': 'system',
+                        };
+                        const newFilter = filterMap[e.key]!;
+                        const next = this.activeFilter === newFilter ? null : newFilter;
+                        this.activeFilter = next;
+                        if (next) {
+                            this.filterPills.render(next);
+                            this.renderResults();
+                        } else {
+                            this.filterPills.clearFilter();
+                            this.renderResults();
+                        }
+                    }
+                    break;
                 case 'Escape':
                     e.preventDefault();
                     this.searchHistory.hide();

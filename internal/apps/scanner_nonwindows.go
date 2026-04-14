@@ -3,6 +3,7 @@
 package apps
 
 import (
+	"bufio"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,7 +86,11 @@ func scanDesktopApps() []AppEntry {
 				results = append(results, AppEntry{Name: strings.TrimSuffix(name, ".app"), Path: path})
 			}
 			if runtime.GOOS == "linux" && strings.HasSuffix(lower, ".desktop") {
-				results = append(results, AppEntry{Name: strings.TrimSuffix(name, ".desktop"), Path: path})
+				appName := desktopAppName(path)
+				if appName == "" {
+					appName = strings.TrimSuffix(name, ".desktop")
+				}
+				results = append(results, AppEntry{Name: appName, Path: path})
 			}
 		}
 	}
@@ -145,4 +150,25 @@ func deduplicate(apps []AppEntry) []AppEntry {
 		result = append(result, app)
 	}
 	return result
+}
+
+// desktopAppName reads the Name= field from a .desktop file and returns it.
+// Locale-specific variants (Name[xx]=) are ignored; only the unlocalized Name= line is used.
+// Returns an empty string if the file cannot be read or no Name= entry is found.
+func desktopAppName(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Skip locale variants like Name[de]= or Name[zh_CN]=
+		if strings.HasPrefix(line, "Name=") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Name="))
+		}
+	}
+	return ""
 }

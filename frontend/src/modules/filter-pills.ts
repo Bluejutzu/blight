@@ -19,10 +19,10 @@ export class FilterPills {
     render(activeFilter: string | null): void {
         this.activeFilter = activeFilter;
         this.containerEl.innerHTML = FILTERS.map(
-            (f) => `
+            (f, i) => `
             <button class="filter-pill ${activeFilter === f.value ? 'active' : ''}"
                 data-filter="${f.value}"
-                title="Show only ${f.label} (Ctrl+${f.label[0]})">${f.label}</button>
+                title="Show only ${f.label} (Ctrl+${i + 1})">${f.label}</button>
         `
         ).join('');
         this.containerEl.querySelectorAll<HTMLElement>('.filter-pill').forEach((pill) => {
@@ -32,5 +32,39 @@ export class FilterPills {
                 this.onChange(next);
             });
         });
+        this.containerEl.classList.remove('hidden');
+    }
+
+    /** Show only the active filter badge (no query active, but a filter was chosen). */
+    renderActiveOnly(): void {
+        if (!this.activeFilter) {
+            this.hide();
+            return;
+        }
+        const f = FILTERS.find((f) => f.value === this.activeFilter);
+        if (!f) {
+            this.hide();
+            return;
+        }
+        this.containerEl.innerHTML = `
+            <button class="filter-pill active"
+                data-filter="${f.value}"
+                title="Clear filter">${f.label} ✕</button>
+        `;
+        this.containerEl.querySelectorAll<HTMLElement>('.filter-pill').forEach((pill) => {
+            pill.addEventListener('click', () => {
+                this.onChange(null);
+            });
+        });
+        this.containerEl.classList.remove('hidden');
+    }
+
+    clearFilter(): void {
+        this.activeFilter = null;
+        this.hide();
+    }
+
+    hide(): void {
+        this.containerEl.classList.add('hidden');
     }
 }

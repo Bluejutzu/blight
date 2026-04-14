@@ -1168,7 +1168,7 @@ func (a *App) searchSystemCommands(query string) []SearchResult {
 				ID:       "sys-" + cmd.ID,
 				Title:    cmd.Name,
 				Subtitle: cmd.Subtitle,
-				Icon:     "",
+				Icon:     cmd.Icon,
 				Category: "System",
 			})
 		}

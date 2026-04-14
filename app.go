@@ -266,6 +266,10 @@ func (a *App) OpenFolder(path string) {
 	shellOpen(path)
 }
 
+func (a *App) OpenURL(url string) {
+	runtime.BrowserOpenURL(a.ctx, url)
+}
+
 func (a *App) Uninstall() string {
 	dir := blightInstallDir()
 	uninst := filepath.Join(dir, "uninstall.exe")

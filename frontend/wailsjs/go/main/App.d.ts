@@ -53,6 +53,8 @@ export function IsSettingsMode():Promise<boolean>;
 
 export function OpenFolder(arg1:string):Promise<void>;
 
+export function OpenURL(arg1:string):Promise<void>;
+
 export function OpenFolderPicker():Promise<string>;
 
 export function OpenSettingsWindow():Promise<void>;

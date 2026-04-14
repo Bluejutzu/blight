@@ -108,6 +108,9 @@ export class Settings {
             const useAnimation = inputEl('settings-use-animation');
             if (useAnimation) useAnimation.checked = config.useAnimation !== false;
 
+            const footerHints = selectEl('settings-footer-hints');
+            if (footerHints) footerHints.value = config.footerHints || 'always';
+
             // System tab
             const startOnStartup = inputEl('settings-start-on-startup');
             if (startOnStartup) startOnStartup.checked = startupEnabled;
@@ -196,6 +199,7 @@ export class Settings {
                     showPlaceholder: inputEl('settings-show-placeholder')?.checked ?? true,
                     theme: selectEl('settings-theme')?.value || 'dark',
                     useAnimation: inputEl('settings-use-animation')?.checked ?? true,
+                    footerHints: selectEl('settings-footer-hints')?.value || 'always',
                     startOnStartup: inputEl('settings-start-on-startup')?.checked ?? false,
                     hideNotifyIcon: inputEl('settings-hide-notify-icon')?.checked ?? false,
                     disableFolderIndex: !(inputEl('settings-include-folders')?.checked ?? true),

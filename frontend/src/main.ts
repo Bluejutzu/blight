@@ -56,6 +56,7 @@ class Blight {
     private hideWhenDeactivated = true;
     private lastQueryMode = 'clear';
     private lastUpdateCheck = 0;
+    private footerHintsMode = 'always';
 
     // Window state
     private lastShownAt = 0;
@@ -297,6 +298,19 @@ class Blight {
 
         document.documentElement.classList.toggle('no-animations', !cfg.useAnimation);
         document.documentElement.dataset['theme'] = cfg.theme || 'dark';
+
+        this.footerHintsMode = cfg.footerHints || 'always';
+        const inSearch = !this.launcherEl.classList.contains('spotlight-mode');
+        this._applyFooterHintsVisibility(inSearch);
+    }
+
+    _applyFooterHintsVisibility(inSearch: boolean): void {
+        const actions = document.querySelector<HTMLElement>('.footer-actions');
+        if (!actions) return;
+        const visible =
+            this.footerHintsMode === 'always' ||
+            (this.footerHintsMode === 'on-search' && inSearch);
+        actions.classList.toggle('footer-hints-hidden', !visible);
     }
 
     // --- Events ---
@@ -457,6 +471,7 @@ class Blight {
         this.resultsContainer.innerHTML = '';
         this.launcherEl.classList.add('spotlight-mode');
         this.updateFooterHints(null);
+        this._applyFooterHintsVisibility(false);
         this.calcPreview.clear();
     }
 
@@ -601,6 +616,7 @@ class Blight {
 
         this._displayResults = displayResults;
         this.updateFooterHints(this._displayResults[this.selectedIndex] ?? null);
+        this._applyFooterHintsVisibility(true);
         this.systemNotifs.refresh();
     }
 

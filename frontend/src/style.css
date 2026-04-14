@@ -476,6 +476,8 @@ body {
 
 .footer-hint-secondary.hidden { display: none; }
 
+.footer-hints-hidden .footer-hint { display: none; }
+
 /* === Toast === */
 
 .toast {

@@ -123,9 +123,8 @@ export class SearchHistory {
             item.classList.toggle('history-item--active', i === this.highlightedIndex);
         });
         if (this.highlightedIndex >= 0) {
-            this.containerEl
-                .querySelectorAll<HTMLElement>('.history-item')
-                [this.highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+            const items = this.containerEl.querySelectorAll<HTMLElement>('.history-item');
+            items[this.highlightedIndex]?.scrollIntoView({ block: 'nearest' });
         }
     }
 }

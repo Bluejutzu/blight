@@ -86,7 +86,11 @@ func scanDesktopApps() []AppEntry {
 				results = append(results, AppEntry{Name: strings.TrimSuffix(name, ".app"), Path: path})
 			}
 			if runtime.GOOS == "linux" && strings.HasSuffix(lower, ".desktop") {
-				appName := desktopAppName(path)
+				entry := readDesktopEntry(path)
+				if !entry.shouldShow {
+					continue
+				}
+				appName := entry.name
 				if appName == "" {
 					appName = strings.TrimSuffix(name, ".desktop")
 				}
@@ -152,23 +156,43 @@ func deduplicate(apps []AppEntry) []AppEntry {
 	return result
 }
 
-// desktopAppName reads the Name= field from a .desktop file and returns it.
-// Locale-specific variants (Name[xx]=) are ignored; only the unlocalized Name= line is used.
-// Returns an empty string if the file cannot be read or no Name= entry is found.
-func desktopAppName(path string) string {
+type desktopEntry struct {
+	name       string
+	shouldShow bool
+}
+
+// readDesktopEntry reads a .desktop file and returns the app name and whether
+// it should be displayed in a launcher. It skips entries where:
+//   - Type != Application (e.g. directories, links)
+//   - NoDisplay=true (background agents, autostart helpers, etc.)
+//
+// Locale-specific Name[xx]= variants are ignored.
+func readDesktopEntry(path string) desktopEntry {
 	f, err := os.Open(path)
 	if err != nil {
-		return ""
+		return desktopEntry{}
 	}
 	defer f.Close()
+
+	var name string
+	entryType := "Application" // default if Type= is absent
+	noDisplay := false
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		// Skip locale variants like Name[de]= or Name[zh_CN]=
-		if strings.HasPrefix(line, "Name=") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "Name="))
+		switch {
+		case strings.HasPrefix(line, "Name="):
+			name = strings.TrimSpace(strings.TrimPrefix(line, "Name="))
+		case strings.HasPrefix(line, "Type="):
+			entryType = strings.TrimSpace(strings.TrimPrefix(line, "Type="))
+		case strings.EqualFold(line, "NoDisplay=true"):
+			noDisplay = true
 		}
 	}
-	return ""
+
+	return desktopEntry{
+		name:       name,
+		shouldShow: entryType == "Application" && !noDisplay,
+	}
 }

@@ -560,6 +560,12 @@ class Blight {
         }
 
         const displayResults = filtered.length > 0 ? filtered : this.results;
+
+        // Clamp selectedIndex so it never points past the end of the visible list.
+        if (this.selectedIndex >= displayResults.length) {
+            this.selectedIndex = 0;
+        }
+
         let html = '';
         let lastCategory = '';
 

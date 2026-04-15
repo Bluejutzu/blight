@@ -81,6 +81,11 @@ type BlightConfig struct {
 	// File index behaviour
 	DisableFolderIndex bool `json:"disableFolderIndex,omitempty"` // exclude folders from search results, default false
 
+	// Web search
+	// URL template for web searches; %s is replaced with the URL-encoded query.
+	// Default: https://www.google.com/search?q=%s
+	SearchEngineURL string `json:"searchEngineURL,omitempty"`
+
 	// User-defined aliases: trigger → expansion (URL or text snippet)
 	Aliases map[string]string `json:"aliases,omitempty"`
 	// IDs of pinned items — shown first in spotlight view and boosted in search
@@ -659,7 +664,11 @@ func (a *App) Execute(id string) string {
 
 	if strings.HasPrefix(id, "web-search:") {
 		query := strings.TrimPrefix(id, "web-search:")
-		searchURL := "https://www.google.com/search?q=" + url.QueryEscape(query)
+		tmpl := a.config.SearchEngineURL
+		if tmpl == "" {
+			tmpl = "https://www.google.com/search?q=%s"
+		}
+		searchURL := strings.ReplaceAll(tmpl, "%s", url.QueryEscape(query))
 		runtime.BrowserOpenURL(a.ctx, searchURL)
 		runtime.WindowHide(a.ctx)
 		a.visible.Store(false)

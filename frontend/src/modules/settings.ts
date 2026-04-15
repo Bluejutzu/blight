@@ -102,6 +102,11 @@ export class Settings {
             const placeholderText = inputEl('settings-placeholder-text');
             if (placeholderText) placeholderText.value = config.placeholderText || '';
 
+            const searchEngineURL = inputEl('settings-search-engine-url');
+            if (searchEngineURL)
+                searchEngineURL.value =
+                    config.searchEngineURL || 'https://www.google.com/search?q=%s';
+
             const showPlaceholder = inputEl('settings-show-placeholder');
             if (showPlaceholder) showPlaceholder.checked = config.showPlaceholder !== false;
 
@@ -208,6 +213,7 @@ export class Settings {
                     startOnStartup: inputEl('settings-start-on-startup')?.checked ?? false,
                     hideNotifyIcon: inputEl('settings-hide-notify-icon')?.checked ?? false,
                     disableFolderIndex: !(inputEl('settings-include-folders')?.checked ?? true),
+                    searchEngineURL: inputEl('settings-search-engine-url')?.value?.trim() || '',
                     indexDirs: this.currentIndexDirs,
                 };
                 try {

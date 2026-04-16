@@ -157,7 +157,7 @@ class Blight {
         );
 
         this.systemNotifs = new SystemNotifications(this.resultsContainer, () =>
-            this.launcherEl.classList.contains('spotlight-mode')
+            this.launcherEl.classList.contains('home-mode')
         );
 
         this.init();
@@ -222,7 +222,7 @@ class Blight {
         this.bindEvents();
         this.listenIndexStatus();
         this.settings.bind();
-        this.loadDefaultResults();
+        void this.loadDefaultResults();
         this.loadUsageScores();
         this.filterPills.hide();
         this.checkWhatsNew();
@@ -306,7 +306,7 @@ class Blight {
         applyTheme(cfg.theme || 'dark');
 
         this.footerHintsMode = cfg.footerHints || 'always';
-        const inSearch = !this.launcherEl.classList.contains('spotlight-mode');
+        const inSearch = !this.launcherEl.classList.contains('home-mode');
         this._applyFooterHintsVisibility(inSearch);
     }
 
@@ -346,6 +346,20 @@ class Blight {
         };
 
         attemptFocus(8);
+    }
+
+    setCommandMode(enabled: boolean): void {
+        this.launcherEl.classList.toggle('command-mode', enabled);
+        document.querySelector('.search-container')?.classList.toggle('command-mode', enabled);
+    }
+
+    syncCalcPreview(results: main.SearchResult[]): void {
+        const calcResult = results.find((result) => result.kind === 'calc');
+        if (calcResult) {
+            this.calcPreview.show(calcResult.title);
+            return;
+        }
+        this.calcPreview.clear();
     }
 
     // --- Events ---
@@ -390,6 +404,10 @@ class Blight {
                     if (e.ctrlKey) this.executeSecondaryAction();
                     else this.executeSelected();
                     break;
+                case 'Tab':
+                    e.preventDefault();
+                    this.openActionPanelForSelected();
+                    break;
                 case 'k':
                 case 'K':
                     if (e.ctrlKey) {
@@ -408,14 +426,16 @@ class Blight {
                 case '3':
                 case '4':
                 case '5':
+                case '6':
                     if (e.ctrlKey && this.currentQuery) {
                         e.preventDefault();
                         const filterMap: Record<string, string> = {
-                            '1': 'applications',
-                            '2': 'files',
-                            '3': 'folders',
+                            '1': 'command',
+                            '2': 'app',
+                            '3': 'file',
                             '4': 'clipboard',
-                            '5': 'system',
+                            '5': 'folder',
+                            '6': 'system',
                         };
                         const newFilter = filterMap[e.key]!;
                         const next = this.activeFilter === newFilter ? null : newFilter;
@@ -440,7 +460,7 @@ class Blight {
                     } else if (this.searchInput.value) {
                         this.searchInput.value = '';
                         this.currentQuery = '';
-                        this.loadDefaultResults();
+                        void this.loadDefaultResults();
                     } else {
                         HideWindow();
                     }
@@ -472,7 +492,7 @@ class Blight {
                 this.searchInput.value = '';
                 this.currentQuery = '';
                 this._displayResults = [];
-                this.loadDefaultResults();
+                void this.loadDefaultResults();
                 this.activeFilter = null;
                 this.filterPills.clearFilter();
                 this.filterPills.hide();
@@ -503,10 +523,11 @@ class Blight {
 
     onSearchInput(): void {
         clearTimeout(this.debounceTimer ?? undefined);
-        const query = this.visibleQuery();
+        const query = this.searchInput.value.trim();
+        this.setCommandMode(query.startsWith('>'));
         if (!query) {
             this.setLoading(false);
-            this.loadDefaultResults();
+            void this.loadDefaultResults();
             this.calcPreview.clear();
             this.searchHistory.show();
             // Clear active filter and hide pills when query is emptied
@@ -516,9 +537,8 @@ class Blight {
             return;
         }
         this.searchHistory.hide();
-        this.launcherEl.classList.remove('spotlight-mode');
+        this.launcherEl.classList.remove('home-mode');
         this.setLoading(true);
-        this.calcPreview.update(query);
         // Show filter pills once the user starts typing
         this.filterPills.render(this.activeFilter);
         this.debounceTimer = setTimeout(async () => {
@@ -534,17 +554,15 @@ class Blight {
         }, this.searchDelay);
     }
 
-    loadDefaultResults(): void {
+    async loadDefaultResults(): Promise<void> {
         this.searchSeq++;
         this.currentQuery = '';
-        this.results = [];
+        this.results = await Search('');
         this._displayResults = [];
         this.selectedIndex = 0;
-        this.resultsContainer.innerHTML = '';
-        this.launcherEl.classList.add('spotlight-mode');
-        this.updateFooterHints(null);
-        this._applyFooterHintsVisibility(false);
-        this.calcPreview.clear();
+        this.launcherEl.classList.add('home-mode');
+        this.setCommandMode(false);
+        this.renderResults();
     }
 
     setLoading(loading: boolean): void {
@@ -555,7 +573,7 @@ class Blight {
 
     renderResults(): void {
         const renderSeq = ++this.renderSeq;
-        this.launcherEl.classList.remove('spotlight-mode');
+        this.launcherEl.classList.toggle('home-mode', !this.currentQuery);
 
         if (this.results.length === 0) {
             const q = this.currentQuery;
@@ -580,9 +598,7 @@ class Blight {
         }
 
         const filtered = this.activeFilter
-            ? this.results.filter(
-                  (r) => r.category.toLowerCase() === this.activeFilter!.toLowerCase()
-              )
+            ? this.results.filter((result) => result.kind === this.activeFilter)
             : this.results;
 
         if (filtered.length === 0 && this.activeFilter) {
@@ -620,7 +636,12 @@ class Blight {
                 ? `<div class="result-icon"><img src="${iconSrc}" alt=""/></div>`
                 : `<div class="result-icon result-icon-fallback" data-icon-index="${index}">${getFallbackIcon(result.category)}</div>`;
 
-            const titleHtml = highlightMatch(result.title, this.currentQuery);
+            const titleHtml = highlightMatch(
+                result.title,
+                this.currentQuery.startsWith('>')
+                    ? this.currentQuery.slice(1).trim()
+                    : this.currentQuery
+            );
 
             const freq = this.usageScores.get(result.id) ?? 0;
             const freqDot =
@@ -693,6 +714,7 @@ class Blight {
         });
 
         this._displayResults = displayResults;
+        this.syncCalcPreview(displayResults);
         this.updateFooterHints(this._displayResults[this.selectedIndex] ?? null);
         this._applyFooterHintsVisibility(true);
         this.systemNotifs.refresh();
@@ -747,24 +769,22 @@ class Blight {
         if (list.length === 0) return;
         const result = list[this.selectedIndex];
 
-        if (result.id === 'calc-result') {
-            await navigator.clipboard.writeText(result.title);
-            this.showToast('Copied result', result.title);
-            return;
-        }
-        if (result.id.startsWith('web-search:')) {
-            await Execute(result.id);
-            return;
-        }
-
         const response = await Execute(result.id);
         if (response === 'copied') {
-            this.showToast('Copied to clipboard', result.title, 'success');
+            this.showToast(
+                result.kind === 'calc' ? 'Copied result' : 'Copied to clipboard',
+                result.title,
+                'success'
+            );
         } else if (response === 'ok') {
-            if (result.id.startsWith('sys-')) {
+            if (result.kind === 'system') {
                 this.showToast(result.title, result.subtitle, 'info');
             } else {
-                this.showToast(`Launched ${result.title}`, result.path || '', 'success');
+                this.showToast(
+                    `${result.primaryActionLabel || 'Ran'} ${result.title}`,
+                    result.path || result.subtitle || '',
+                    'success'
+                );
             }
         } else if (response && response !== 'ok' && response !== 'copied') {
             this.showToast('Action failed', response, 'error');
@@ -803,22 +823,24 @@ class Blight {
     }
 
     getSecondaryActionId(resultId: string): string | null {
+        if (resultId.startsWith('command:')) return 'copy';
         if (resultId.startsWith('dir-open:')) return 'terminal';
         if (resultId.startsWith('file-open:')) return 'explorer';
-        if (resultId.startsWith('clip-')) return 'copy';
+        if (resultId.startsWith('clip-')) return 'delete';
         if (
             resultId.startsWith('sys-') ||
             resultId.startsWith('web-search:') ||
-            resultId === 'calc-result'
+            resultId.startsWith('calc:')
         )
             return null;
         return 'admin';
     }
 
     getSecondaryActionLabel(resultId: string): string {
+        if (resultId.startsWith('command:')) return 'Copy Value';
         if (resultId.startsWith('dir-open:')) return 'Open in Terminal';
         if (resultId.startsWith('file-open:')) return 'Show in Explorer';
-        if (resultId.startsWith('clip-')) return 'Copy';
+        if (resultId.startsWith('clip-')) return 'Delete';
         return 'Run as Admin';
     }
 
@@ -837,7 +859,7 @@ class Blight {
                 break;
             case 'delete':
                 this.showToast('Deleted', title, 'info');
-                this.loadDefaultResults();
+                void this.loadDefaultResults();
                 break;
             case 'admin':
                 if (response === 'ok') this.showToast('Launched as admin', title, 'success');
@@ -856,8 +878,20 @@ class Blight {
                     );
                 else this.showToast(`Unpinned "${title}"`, '', 'info');
                 break;
-            case 'delete-alias':
-                this.showToast('Alias deleted', title, 'info');
+            case 'duplicate-command':
+                if (response.startsWith('duplicated:')) {
+                    this.showToast('Command duplicated', title, 'success');
+                }
+                break;
+            case 'edit-command':
+                if (response.startsWith('edit-command:')) {
+                    this.settings.openCommandEditor(response.replace('edit-command:', ''));
+                }
+                break;
+            case 'delete-command':
+                if (response === 'deleted') {
+                    this.showToast('Command deleted', title, 'info');
+                }
                 break;
         }
     }
@@ -865,13 +899,20 @@ class Blight {
     // --- Footer hints ---
 
     updateFooterHints(result: main.SearchResult | null): void {
+        const primaryHint = document.getElementById('footer-hint-primary');
+        const actionsHint = document.getElementById('footer-hint-actions');
         const secondaryHint = document.getElementById('footer-hint-secondary');
-        if (!secondaryHint) return;
+        if (!primaryHint || !actionsHint || !secondaryHint) return;
         if (!result) {
+            primaryHint.innerHTML = '<kbd>↵</kbd> Open';
+            actionsHint.innerHTML = '<kbd>Tab</kbd> Actions';
             secondaryHint.classList.add('hidden');
             return;
         }
-        const secondaryLabel = this.getSecondaryActionLabel(result.id);
+        primaryHint.innerHTML = `<kbd>↵</kbd> ${escapeHtml(result.primaryActionLabel || 'Open')}`;
+        actionsHint.innerHTML = '<kbd>Tab</kbd> Actions';
+        const secondaryLabel =
+            result.secondaryActionLabel || this.getSecondaryActionLabel(result.id);
         const secondaryId = this.getSecondaryActionId(result.id);
         const hasSecondary = secondaryId !== null && secondaryId !== 'explorer';
         if (hasSecondary) {

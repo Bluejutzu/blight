@@ -1,7 +1,8 @@
 const FILTERS = [
-    { label: 'Apps', value: 'applications' },
-    { label: 'Files', value: 'files' },
-    { label: 'Folders', value: 'folders' },
+    { label: 'Cmds', value: 'command' },
+    { label: 'Apps', value: 'app' },
+    { label: 'Files', value: 'file' },
+    { label: 'Folders', value: 'folder' },
     { label: 'Clip', value: 'clipboard' },
     { label: 'System', value: 'system' },
 ];

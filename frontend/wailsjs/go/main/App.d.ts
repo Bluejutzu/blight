@@ -13,6 +13,8 @@ export function CloseSettings():Promise<void>;
 
 export function CompleteOnboarding(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
+export function DeleteCommand(arg1:string):Promise<void>;
+
 export function DeleteAlias(arg1:string):Promise<void>;
 
 export function Execute(arg1:string):Promise<string>;
@@ -24,6 +26,8 @@ export function ExportSettings():Promise<string>;
 export function GetAliases():Promise<Record<string, string>>;
 
 export function GetConfig():Promise<main.BlightConfig>;
+
+export function GetCommands():Promise<Array<main.CommandDefinition>>;
 
 export function GetContextActions(arg1:string):Promise<Array<main.ContextAction>>;
 
@@ -64,6 +68,8 @@ export function RefreshApps():Promise<void>;
 export function ReindexFiles():Promise<void>;
 
 export function SaveAlias(arg1:string,arg2:string):Promise<void>;
+
+export function SaveCommand(arg1:main.CommandDefinition):Promise<void>;
 
 export function SaveSettings(arg1:main.BlightConfig):Promise<void>;
 

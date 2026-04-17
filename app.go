@@ -1324,6 +1324,25 @@ func (a *App) getDefaultResults() []SearchResult {
 		added++
 	}
 
+	// Recent clipboard (max 3)
+	if a.clipboard != nil {
+		for i, entry := range a.clipboard.Entries() {
+			if i >= 3 {
+				break
+			}
+			title := entry.Content
+			if len(title) > 60 {
+				title = title[:60] + "…"
+			}
+			results = append(results, SearchResult{
+				ID:       fmt.Sprintf("clipboard:%d", i),
+				Title:    title,
+				Subtitle: "Clipboard",
+				Category: "Clipboard",
+			})
+		}
+	}
+
 	return results
 }
 

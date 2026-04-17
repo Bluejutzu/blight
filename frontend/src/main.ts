@@ -534,8 +534,8 @@ class Blight {
         }, this.searchDelay);
     }
 
-    loadDefaultResults(): void {
-        this.searchSeq++;
+    async loadDefaultResults(): Promise<void> {
+        const seq = ++this.searchSeq;
         this.currentQuery = '';
         this.results = [];
         this._displayResults = [];
@@ -545,6 +545,14 @@ class Blight {
         this.updateFooterHints(null);
         this._applyFooterHintsVisibility(false);
         this.calcPreview.clear();
+
+        const homeResults = await Search('');
+        if (seq !== this.searchSeq) return;
+        if (homeResults.length > 0) {
+            this.results = homeResults;
+            this.searchHistory.hide();
+            this.renderResults();
+        }
     }
 
     setLoading(loading: boolean): void {

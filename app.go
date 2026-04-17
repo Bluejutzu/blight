@@ -599,10 +599,65 @@ func (a *App) OpenFolderPicker() string {
 	return path
 }
 
+// searchCommands returns commands matching term. Empty term returns all commands.
+func (a *App) searchCommands(term string) []SearchResult {
+	var results []SearchResult
+	termLower := strings.ToLower(strings.TrimSpace(term))
+	for _, cmd := range a.allCommands() {
+		kw := strings.ToLower(cmd.Keyword)
+		title := strings.ToLower(cmd.Title)
+		desc := strings.ToLower(cmd.Description)
+		if termLower == "" ||
+			strings.HasPrefix(kw, termLower) ||
+			strings.Contains(title, termLower) ||
+			strings.Contains(desc, termLower) ||
+			strings.HasPrefix(termLower, kw+" ") ||
+			termLower == kw {
+			arg := ""
+			if strings.HasPrefix(termLower, kw+" ") {
+				arg = term[len(kw)+1:]
+			}
+			var id, subtitle string
+			if cmd.RequiresArgument && arg == "" {
+				id = "cmd-needs-arg:" + cmd.ID
+				subtitle = cmd.Description
+				if subtitle == "" {
+					subtitle = "Type an argument"
+				}
+			} else {
+				resolved := resolveCommandTemplate(cmd, arg)
+				id = commandResultID(cmd.ActionType, resolved)
+				subtitle = resolved
+			}
+			results = append(results, SearchResult{
+				ID:       id,
+				Title:    cmd.Title,
+				Subtitle: subtitle,
+				Icon:     cmd.Icon,
+				Category: "Commands",
+			})
+		}
+	}
+	if len(results) == 0 {
+		return []SearchResult{{
+			ID:       "web-search:" + term,
+			Title:    "Search the web for \"" + term + "\"",
+			Subtitle: "Opens in your default browser",
+			Category: "Web",
+		}}
+	}
+	return results
+}
+
 func (a *App) Search(query string) []SearchResult {
 	log := debug.Get()
 	if query == "" {
 		return a.getDefaultResults()
+	}
+
+	// Command mode: > prefix restricts results to commands only
+	if strings.HasPrefix(query, ">") {
+		return a.searchCommands(strings.TrimPrefix(query, ">"))
 	}
 
 	// Path-browser mode: ~ or any absolute path prefix triggers live dir listing.

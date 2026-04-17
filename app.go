@@ -50,6 +50,20 @@ type ContextAction struct {
 	Icon  string `json:"icon"`
 }
 
+type CommandDefinition struct {
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	Keyword          string   `json:"keyword"`
+	Description      string   `json:"description"`
+	ActionType       string   `json:"actionType"` // open_url|copy_text|open_path|run_shell
+	Template         string   `json:"template"`
+	Keywords         []string `json:"keywords,omitempty"`
+	Icon             string   `json:"icon,omitempty"`
+	RequiresArgument bool     `json:"requiresArgument"`
+	RunAsAdmin       bool     `json:"runAsAdmin"`
+	Pinned           bool     `json:"pinned"`
+}
+
 type BlightConfig struct {
 	// Core
 	FirstRun     bool     `json:"firstRun"`
@@ -88,6 +102,8 @@ type BlightConfig struct {
 
 	// User-defined aliases: trigger → expansion (URL or text snippet)
 	Aliases map[string]string `json:"aliases,omitempty"`
+	// User-defined commands (supersedes Aliases; Aliases are migrated in on load)
+	Commands []CommandDefinition `json:"commands,omitempty"`
 	// IDs of pinned items — shown first in spotlight view and boosted in search
 	PinnedItems []string `json:"pinnedItems,omitempty"`
 }
@@ -410,6 +426,34 @@ func (a *App) loadConfig() {
 	if a.config.FooterHints == "" {
 		a.config.FooterHints = "always"
 	}
+
+	// Migrate aliases → CommandDefinitions (idempotent: skip keywords already present)
+	if len(a.config.Aliases) > 0 {
+		cmdKeywords := make(map[string]bool)
+		for _, c := range a.config.Commands {
+			cmdKeywords[strings.ToLower(c.Keyword)] = true
+		}
+		for trigger, expansion := range a.config.Aliases {
+			t := strings.ToLower(trigger)
+			if cmdKeywords[t] {
+				continue
+			}
+			actionType := "copy_text"
+			if strings.HasPrefix(expansion, "http://") || strings.HasPrefix(expansion, "https://") {
+				actionType = "open_url"
+			}
+			a.config.Commands = append(a.config.Commands, CommandDefinition{
+				ID:               "alias-" + t,
+				Title:            trigger,
+				Keyword:          t,
+				Description:      expansion,
+				ActionType:       actionType,
+				Template:         expansion,
+				RequiresArgument: strings.Contains(expansion, "{{query}}"),
+			})
+			cmdKeywords[t] = true
+		}
+	}
 }
 
 func (a *App) saveConfig() error {
@@ -594,6 +638,39 @@ func (a *App) Search(query string) []SearchResult {
 		}
 	}
 
+	// Commands — match by keyword prefix or keyword + argument
+	{
+		qLower := strings.ToLower(query)
+		for _, cmd := range a.allCommands() {
+			kw := strings.ToLower(cmd.Keyword)
+			kwMatch := qLower == kw || strings.HasPrefix(qLower, kw+" ")
+			kwPrefix := strings.HasPrefix(kw, qLower) && qLower != kw
+			if !kwMatch && !kwPrefix {
+				continue
+			}
+			arg := ""
+			if strings.HasPrefix(qLower, kw+" ") {
+				arg = query[len(kw)+1:]
+			}
+			var id, subtitle string
+			if cmd.RequiresArgument && arg == "" {
+				id = "cmd-needs-arg:" + cmd.ID
+				subtitle = "Type an argument"
+			} else {
+				resolved := resolveCommandTemplate(cmd, arg)
+				id = commandResultID(cmd.ActionType, resolved)
+				subtitle = resolved
+			}
+			results = append(results, SearchResult{
+				ID:       id,
+				Title:    cmd.Title,
+				Subtitle: subtitle,
+				Icon:     cmd.Icon,
+				Category: "Commands",
+			})
+		}
+	}
+
 	if commands.IsCalcQuery(query) {
 		calc := commands.Evaluate(query)
 		if calc.Valid {
@@ -683,6 +760,49 @@ func (a *App) Execute(id string) string {
 		return "ok"
 	}
 
+	if strings.HasPrefix(id, "cmd-needs-arg:") {
+		return "needs-arg"
+	}
+
+	if strings.HasPrefix(id, "cmd-url:") {
+		target := strings.TrimPrefix(id, "cmd-url:")
+		runtime.BrowserOpenURL(a.ctx, target)
+		runtime.WindowHide(a.ctx)
+		a.visible.Store(false)
+		return "ok"
+	}
+
+	if strings.HasPrefix(id, "cmd-copy:") {
+		text := strings.TrimPrefix(id, "cmd-copy:")
+		runtime.ClipboardSetText(a.ctx, text)
+		return "copied"
+	}
+
+	if strings.HasPrefix(id, "cmd-path:") {
+		path := strings.TrimPrefix(id, "cmd-path:")
+		shellOpen(path)
+		runtime.WindowHide(a.ctx)
+		a.visible.Store(false)
+		return "ok"
+	}
+
+	if strings.HasPrefix(id, "cmd-shell:") {
+		cmd := strings.TrimPrefix(id, "cmd-shell:")
+		var c *exec.Cmd
+		if goruntime.GOOS == "windows" {
+			c = exec.Command("cmd.exe", "/c", cmd)
+		} else {
+			c = exec.Command("sh", "-c", cmd)
+		}
+		configureSettingsCommand(c)
+		if err := c.Start(); err != nil {
+			return err.Error()
+		}
+		runtime.WindowHide(a.ctx)
+		a.visible.Store(false)
+		return "ok"
+	}
+
 	if strings.HasPrefix(id, "alias:") {
 		trigger := strings.TrimPrefix(id, "alias:")
 		expansion, ok := a.config.Aliases[trigger]
@@ -760,6 +880,53 @@ func (a *App) Execute(id string) string {
 	return "not found"
 }
 
+var builtinCommands = []CommandDefinition{
+	{ID: "g", Title: "Google Search", Keyword: "g", Description: "Search Google", ActionType: "open_url", Template: "https://www.google.com/search?q={{query}}", RequiresArgument: true},
+	{ID: "gh", Title: "GitHub Search", Keyword: "gh", Description: "Search GitHub", ActionType: "open_url", Template: "https://github.com/search?q={{query}}", RequiresArgument: true},
+	{ID: "yt", Title: "YouTube", Keyword: "yt", Description: "Search YouTube", ActionType: "open_url", Template: "https://www.youtube.com/results?search_query={{query}}", RequiresArgument: true},
+	{ID: "wiki", Title: "Wikipedia", Keyword: "wiki", Description: "Search Wikipedia", ActionType: "open_url", Template: "https://en.wikipedia.org/wiki/Special:Search?search={{query}}", RequiresArgument: true},
+	{ID: "maps", Title: "Google Maps", Keyword: "maps", Description: "Search Maps", ActionType: "open_url", Template: "https://maps.google.com/?q={{query}}", RequiresArgument: true},
+}
+
+// allCommands returns built-ins merged with user commands. User commands override built-ins by keyword.
+func (a *App) allCommands() []CommandDefinition {
+	userKeywords := make(map[string]bool)
+	for _, c := range a.config.Commands {
+		userKeywords[strings.ToLower(c.Keyword)] = true
+	}
+	var result []CommandDefinition
+	for _, b := range builtinCommands {
+		if !userKeywords[strings.ToLower(b.Keyword)] {
+			result = append(result, b)
+		}
+	}
+	return append(result, a.config.Commands...)
+}
+
+// resolveCommandTemplate substitutes {{query}} in the template.
+// For open_url the argument is URL-encoded; for other types it is inserted as-is.
+func resolveCommandTemplate(cmd CommandDefinition, arg string) string {
+	if cmd.ActionType == "open_url" {
+		return strings.ReplaceAll(cmd.Template, "{{query}}", url.QueryEscape(arg))
+	}
+	return strings.ReplaceAll(cmd.Template, "{{query}}", arg)
+}
+
+func commandResultID(actionType, resolved string) string {
+	switch actionType {
+	case "open_url":
+		return "cmd-url:" + resolved
+	case "copy_text":
+		return "cmd-copy:" + resolved
+	case "open_path":
+		return "cmd-path:" + resolved
+	case "run_shell":
+		return "cmd-shell:" + resolved
+	default:
+		return "cmd-url:" + resolved
+	}
+}
+
 // icon returns a Segoe MDL2/Fluent glyph on Windows and a plain emoji on other platforms.
 // Segoe PUA codepoints are meaningless outside Windows, so we fall back to emoji elsewhere.
 func icon(winGlyph, fallback string) string {
@@ -813,6 +980,13 @@ func (a *App) GetContextActions(id string) []ContextAction {
 		return []ContextAction{
 			{ID: "run", Label: "Run", Icon: icon("\uE768", "▶")},
 		}
+	case strings.HasPrefix(id, "cmd-url:") || strings.HasPrefix(id, "cmd-copy:") || strings.HasPrefix(id, "cmd-path:") || strings.HasPrefix(id, "cmd-shell:"):
+		return []ContextAction{
+			{ID: "run", Label: "Run", Icon: icon("\uE768", "▶")},
+			{ID: "copy", Label: "Copy Value", Icon: icon("\uE8C8", "📋")},
+		}
+	case strings.HasPrefix(id, "cmd-needs-arg:"):
+		return []ContextAction{}
 	case strings.HasPrefix(id, "alias:"):
 		return []ContextAction{
 			{ID: "open", Label: "Use", Icon: icon("\uE768", "▶")},
@@ -843,6 +1017,23 @@ func (a *App) GetContextActions(id string) []ContextAction {
 }
 
 func (a *App) ExecuteContextAction(resultID string, actionID string) string {
+	// Commands
+	if strings.HasPrefix(resultID, "cmd-url:") || strings.HasPrefix(resultID, "cmd-copy:") ||
+		strings.HasPrefix(resultID, "cmd-path:") || strings.HasPrefix(resultID, "cmd-shell:") {
+		switch actionID {
+		case "run":
+			return a.Execute(resultID)
+		case "copy":
+			// Copy the resolved value (everything after the prefix)
+			parts := strings.SplitN(resultID, ":", 2)
+			if len(parts) == 2 {
+				runtime.ClipboardSetText(a.ctx, parts[1])
+				return "copied"
+			}
+		}
+		return "unknown action"
+	}
+
 	// Aliases
 	if strings.HasPrefix(resultID, "alias:") {
 		trigger := strings.TrimPrefix(resultID, "alias:")
@@ -1079,6 +1270,45 @@ func (a *App) DeleteAlias(trigger string) error {
 		delete(a.config.Aliases, trigger)
 	}
 	return a.saveConfig()
+}
+
+// GetCommands returns all user-defined commands.
+func (a *App) GetCommands() []CommandDefinition {
+	if a.config.Commands == nil {
+		return []CommandDefinition{}
+	}
+	return a.config.Commands
+}
+
+// SaveCommand creates or updates a command by ID.
+func (a *App) SaveCommand(cmd CommandDefinition) error {
+	cmd.ID = strings.TrimSpace(cmd.ID)
+	cmd.Keyword = strings.ToLower(strings.TrimSpace(cmd.Keyword))
+	if cmd.ID == "" || cmd.Keyword == "" || cmd.Template == "" {
+		return fmt.Errorf("id, keyword, and template are required")
+	}
+	if cmd.ActionType == "" {
+		cmd.ActionType = "open_url"
+	}
+	for i, c := range a.config.Commands {
+		if c.ID == cmd.ID {
+			a.config.Commands[i] = cmd
+			return a.saveConfig()
+		}
+	}
+	a.config.Commands = append(a.config.Commands, cmd)
+	return a.saveConfig()
+}
+
+// DeleteCommand removes a command by ID.
+func (a *App) DeleteCommand(id string) error {
+	for i, c := range a.config.Commands {
+		if c.ID == id {
+			a.config.Commands = append(a.config.Commands[:i], a.config.Commands[i+1:]...)
+			return a.saveConfig()
+		}
+	}
+	return nil
 }
 
 // TogglePinned pins an item if not already pinned, or unpins it if it is.

@@ -98,9 +98,9 @@ type BlightConfig struct {
 	SearchEngineURL string `json:"searchEngineURL,omitempty"`
 
 	// User-defined aliases and commands
-	Aliases     map[string]string  `json:"aliases,omitempty"`
+	Aliases     map[string]string   `json:"aliases,omitempty"`
 	Commands    []CommandDefinition `json:"commands,omitempty"`
-	PinnedItems []string           `json:"pinnedItems,omitempty"`
+	PinnedItems []string            `json:"pinnedItems,omitempty"`
 }
 
 type App struct {

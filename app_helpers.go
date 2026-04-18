@@ -2,8 +2,8 @@ package main
 
 import (
 	"os"
-	"strings"
 	goruntime "runtime"
+	"strings"
 )
 
 // enrichResult sets Kind, PrimaryActionLabel, SecondaryActionLabel, and
